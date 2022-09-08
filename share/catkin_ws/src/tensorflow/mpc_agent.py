@@ -10,7 +10,7 @@ from collections import defaultdict
 
 
 import rospy
-from std_msgs.msg import Float64MultiArray
+from std_msgs.msg import Float64MultiArray, Float64
 
 # mode
 INIT = 0
@@ -26,6 +26,13 @@ class MPC_Agent():
     def __init__(self, time_horizon = 10, num_action = 729):
         self.horizon = time_horizon
         self.num_action = num_action
+        
+        self.real_ik_result_pub = rospy.Publisher('/real/ik_result', Float64MultiArray, queue_size=10)
+        
+        self.real_pose_sub = rospy.Subscriber('/real/current_pose_rpy', Float64MultiArray, self.real_pose_callback)
+        self.real_velocity_sub = rospy.Subscriber('/real/task_velocity', Float64MultiArray, self.real_velocity_callback)
+        self.real_m_index_sub = rospy.Subscriber('/real/m_index', Float64, self.real_m_index_callback)
+
 
     def get_optimal_action(self,state, goal, model):
         
@@ -47,36 +54,32 @@ class MPC_Agent():
         return first_actions[np.argmin(total_costs),:].flatten()
     
     def run_policy(self, num_episode, episode_length, model, dataset):
-        state = []
-        action = []
-        next_action = []
-        next_state = []
-        total_rewards = []
         for i in range(num_episode):
             total_reward = 0.0
-            s = self.env.reset()
-            g = self.env.get_body_com("target")[0:2]
-            a = self.get_optimal_action(s, g, model, state_index)
+            state = self.reset()
+            print('reset the episode')
             
-            acc = self.env.get_acc()
+            goal = self.get_goal()
+            print('generate random goal')
+            
+            desired_next_state = self.get_optimal_action(state, goal, model)
+            
             for j in range(episode_length): 
-                state.append(np.concatenate([s[state_index],acc]))
-                action.append(a)
-                ns,reward,done,_ = self.env.step(a)
-                if render:
-                    self.env.render()
-                total_reward += reward
-                a = self.get_optimal_action(s, g, model, state_index)
-                s = ns
-                acc = self.env.get_acc()
-                next_state.append(np.concatenate([s[state_index],acc]))
-                next_action.append(a)
+                dataset['real_cur_pos'].append(np.expand_dims(state[0:6],1).transpose())
+                dataset['real_cur_vel'].append(np.expand_dims(state[6:12],1).transpose())
                 
-                if done:
-                    self.env.close()
-                    break
-            total_rewards.append(total_reward)        
-        return np.asarray(state),np.asarray(action),np.asarray(next_state), np.asarray(next_action), np.asarray(total_rewards)
+                dataset['desired_next_pos'].append(np.expand_dims(desired_next_state,1).transpose())
+                
+                next_state,reward = self.step(desired_next_state)
+                total_reward += reward
+                desired_next_state = self.get_optimal_action(s, g, model)
+                state = next_state
+                
+                dataset['real_next_pos'].append(np.expand_dims(state[0:6],1).transpose())
+                dataset['real_next_vel'].append(np.expand_dims(state[6:12],1).transpose())
+                
+                dataset['reward'].append(reward)
+            dataset['total_reward'].append(total_reward)        
     
     
     def cost_fn(self, pred_next_states, goal):
@@ -86,8 +89,44 @@ class MPC_Agent():
         
         return scores
     
+    def reset(self):
+
+        # To do
+        # go to random initial pose command instead of INIT mode
+        rospy.set_param('/real/mode', IDLE)
+        target_traj, traj_vel, traj_acc, target_traj_length = GenTraj.generate_online_trajectory_and_go_to_init(index = 1)
+        state = self.get_robot_state()
+
+        return state
     
         
+    def step(self, desired_next_pose):
+        
+        desired_next_pose = self.solve_ik_by_moveit(desired_next_pose)
+        self.real_ik_result_pub.publish(desired_next_pose)
+        
+        state = self.get_robot_state(state, goal)
+        reward = self.cost_fn()
+        
+        return state, reward    
+         
+    def get_robot_state(self):
+        pose = self.real_pose
+        vel = self.real_velocity
+        return np.concatenate([pose,vel],1)
+        
+    def real_pose_callback(self, data):
+        self.real_pose = data.data      
+              
+    def real_velocity_callback(self, data):
+        self.real_velocity = data.data
+
+    def real_m_index_callback(self, data):
+        self.real_m_index = data.data   
+
+    def get_goal(self):
+        goal = ''
+        return goal
         
 def main():
     
@@ -123,9 +162,12 @@ def main():
     exp_name = 'deriv_test'
     layers = [24,100,100,100,12]
     
-    NN1 = NeuralNet(layers, activation = None, deriv=True)
-    NN1.build_graph()
-    train_total_loss, train_state_loss, train_deriv_loss, eval_total_loss, eval_state_loss, eval_deriv_loss = NN1.train(epoch, train_data, eval_data, exp_name, save=True,eval_interval=10)
+    NN = NeuralNet(layers, activation = None, deriv=True)
+    NN.build_graph()
+    train_total_loss, train_state_loss, train_deriv_loss, eval_total_loss, eval_state_loss, eval_deriv_loss = NN.train(epoch, train_data, eval_data, exp_name, save=True,eval_interval=10)
+    
+    NN_Manip = NeuralNet_Manipulability(layers, activation = None, derive = False)
+    NN_Manip.build_graph()
     
     
     #NN1.saver.restore(NN1.sess,'./'+exp_name)
