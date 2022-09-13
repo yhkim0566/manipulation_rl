@@ -3,7 +3,6 @@
 
 import tensorflow as tf
 import numpy as np
-import time
 
 
 class NeuralNet():
@@ -13,20 +12,20 @@ class NeuralNet():
         self.deriv = deriv
         self.deriv_loss_weight = deriv_loss_weight
         
-    def auto_diff(self,cur_state_tf, desired_cur_state, deriv_cur_state_tf, deriv_desired_cur_state_tf, pred_next_state):
-        n_th1_t = tf.expand_dims(tf.reduce_sum(tf.gradients(pred_next_state[:,0],cur_state_tf)[0]*deriv_cur_state_tf,1)+tf.reduce_sum(tf.gradients(pred_next_state[:,0],desired_cur_state)[0]*deriv_desired_cur_state_tf,1),1)
-        n_th2_t = tf.expand_dims(tf.reduce_sum(tf.gradients(pred_next_state[:,1],cur_state_tf)[0]*deriv_cur_state_tf,1)+tf.reduce_sum(tf.gradients(pred_next_state[:,1],desired_cur_state)[0]*deriv_desired_cur_state_tf,1),1)
-        n_th3_t = tf.expand_dims(tf.reduce_sum(tf.gradients(pred_next_state[:,2],cur_state_tf)[0]*deriv_cur_state_tf,1)+tf.reduce_sum(tf.gradients(pred_next_state[:,2],desired_cur_state)[0]*deriv_desired_cur_state_tf,1),1)
-        n_th4_t = tf.expand_dims(tf.reduce_sum(tf.gradients(pred_next_state[:,3],cur_state_tf)[0]*deriv_cur_state_tf,1)+tf.reduce_sum(tf.gradients(pred_next_state[:,3],desired_cur_state)[0]*deriv_desired_cur_state_tf,1),1)
-        n_th5_t = tf.expand_dims(tf.reduce_sum(tf.gradients(pred_next_state[:,4],cur_state_tf)[0]*deriv_cur_state_tf,1)+tf.reduce_sum(tf.gradients(pred_next_state[:,4],desired_cur_state)[0]*deriv_desired_cur_state_tf,1),1)
-        n_th6_t = tf.expand_dims(tf.reduce_sum(tf.gradients(pred_next_state[:,5],cur_state_tf)[0]*deriv_cur_state_tf,1)+tf.reduce_sum(tf.gradients(pred_next_state[:,5],desired_cur_state)[0]*deriv_desired_cur_state_tf,1),1)
+    def auto_diff(self,cur_state_tf, desired_next_pose, deriv_cur_state_tf, desired_next_vel, pred_next_state):
+        n_th1_t = tf.expand_dims(tf.reduce_sum(tf.gradients(pred_next_state[:,0],cur_state_tf)[0]*deriv_cur_state_tf,1)+tf.reduce_sum(tf.gradients(pred_next_state[:,0],desired_next_pose)[0]*desired_next_vel,1),1)
+        n_th2_t = tf.expand_dims(tf.reduce_sum(tf.gradients(pred_next_state[:,1],cur_state_tf)[0]*deriv_cur_state_tf,1)+tf.reduce_sum(tf.gradients(pred_next_state[:,1],desired_next_pose)[0]*desired_next_vel,1),1)
+        n_th3_t = tf.expand_dims(tf.reduce_sum(tf.gradients(pred_next_state[:,2],cur_state_tf)[0]*deriv_cur_state_tf,1)+tf.reduce_sum(tf.gradients(pred_next_state[:,2],desired_next_pose)[0]*desired_next_vel,1),1)
+        n_th4_t = tf.expand_dims(tf.reduce_sum(tf.gradients(pred_next_state[:,3],cur_state_tf)[0]*deriv_cur_state_tf,1)+tf.reduce_sum(tf.gradients(pred_next_state[:,3],desired_next_pose)[0]*desired_next_vel,1),1)
+        n_th5_t = tf.expand_dims(tf.reduce_sum(tf.gradients(pred_next_state[:,4],cur_state_tf)[0]*deriv_cur_state_tf,1)+tf.reduce_sum(tf.gradients(pred_next_state[:,4],desired_next_pose)[0]*desired_next_vel,1),1)
+        n_th6_t = tf.expand_dims(tf.reduce_sum(tf.gradients(pred_next_state[:,5],cur_state_tf)[0]*deriv_cur_state_tf,1)+tf.reduce_sum(tf.gradients(pred_next_state[:,5],desired_next_pose)[0]*desired_next_vel,1),1)
 
-        n_th1_tt = tf.expand_dims(tf.reduce_sum(tf.gradients(pred_next_state[:,6],cur_state_tf)[0]*deriv_cur_state_tf,1)+tf.reduce_sum(tf.gradients(pred_next_state[:,6],desired_cur_state)[0]*deriv_desired_cur_state_tf,1),1)
-        n_th2_tt = tf.expand_dims(tf.reduce_sum(tf.gradients(pred_next_state[:,7],cur_state_tf)[0]*deriv_cur_state_tf,1)+tf.reduce_sum(tf.gradients(pred_next_state[:,7],desired_cur_state)[0]*deriv_desired_cur_state_tf,1),1)
-        n_th3_tt = tf.expand_dims(tf.reduce_sum(tf.gradients(pred_next_state[:,8],cur_state_tf)[0]*deriv_cur_state_tf,1)+tf.reduce_sum(tf.gradients(pred_next_state[:,8],desired_cur_state)[0]*deriv_desired_cur_state_tf,1),1)
-        n_th4_tt = tf.expand_dims(tf.reduce_sum(tf.gradients(pred_next_state[:,9],cur_state_tf)[0]*deriv_cur_state_tf,1)+tf.reduce_sum(tf.gradients(pred_next_state[:,9],desired_cur_state)[0]*deriv_desired_cur_state_tf,1),1)
-        n_th5_tt = tf.expand_dims(tf.reduce_sum(tf.gradients(pred_next_state[:,10],cur_state_tf)[0]*deriv_cur_state_tf,1)+tf.reduce_sum(tf.gradients(pred_next_state[:,10],desired_cur_state)[0]*deriv_desired_cur_state_tf,1),1)
-        n_th6_tt = tf.expand_dims(tf.reduce_sum(tf.gradients(pred_next_state[:,11],cur_state_tf)[0]*deriv_cur_state_tf,1)+tf.reduce_sum(tf.gradients(pred_next_state[:,11],desired_cur_state)[0]*deriv_desired_cur_state_tf,1),1)
+        n_th1_tt = tf.expand_dims(tf.reduce_sum(tf.gradients(pred_next_state[:,6],cur_state_tf)[0]*deriv_cur_state_tf,1)+tf.reduce_sum(tf.gradients(pred_next_state[:,6],desired_next_pose)[0]*desired_next_vel,1),1)
+        n_th2_tt = tf.expand_dims(tf.reduce_sum(tf.gradients(pred_next_state[:,7],cur_state_tf)[0]*deriv_cur_state_tf,1)+tf.reduce_sum(tf.gradients(pred_next_state[:,7],desired_next_pose)[0]*desired_next_vel,1),1)
+        n_th3_tt = tf.expand_dims(tf.reduce_sum(tf.gradients(pred_next_state[:,8],cur_state_tf)[0]*deriv_cur_state_tf,1)+tf.reduce_sum(tf.gradients(pred_next_state[:,8],desired_next_pose)[0]*desired_next_vel,1),1)
+        n_th4_tt = tf.expand_dims(tf.reduce_sum(tf.gradients(pred_next_state[:,9],cur_state_tf)[0]*deriv_cur_state_tf,1)+tf.reduce_sum(tf.gradients(pred_next_state[:,9],desired_next_pose)[0]*desired_next_vel,1),1)
+        n_th5_tt = tf.expand_dims(tf.reduce_sum(tf.gradients(pred_next_state[:,10],cur_state_tf)[0]*deriv_cur_state_tf,1)+tf.reduce_sum(tf.gradients(pred_next_state[:,10],desired_next_pose)[0]*desired_next_vel,1),1)
+        n_th6_tt = tf.expand_dims(tf.reduce_sum(tf.gradients(pred_next_state[:,11],cur_state_tf)[0]*deriv_cur_state_tf,1)+tf.reduce_sum(tf.gradients(pred_next_state[:,11],desired_next_pose)[0]*desired_next_vel,1),1)
 
         return tf.concat([n_th1_t, n_th2_t, n_th3_t, n_th4_t, n_th5_t, n_th6_t, n_th1_tt, n_th2_tt, n_th3_tt, n_th4_tt, n_th5_tt, n_th6_tt],1)
 
@@ -88,25 +87,25 @@ class NeuralNet():
         self.next_vel = tf.placeholder(tf.float32, [None, 6], name="next_vel")
 
         self.desired_next_pose = tf.placeholder(tf.float32, [None, 6], name="desired_next_pose")
-        self.desired_next_vel = tf.placeholder(tf.float32, [None, 6], name="desired_next_vel")
+        
       
         self.cur_state_tf = tf.concat([self.pose,self.vel],1)
         self.next_state_tf = tf.concat([self.next_pose, self.next_vel],1)
-        self.desired_next_state_tf = tf.concat([self.desired_next_pose, self.desired_next_vel],1)
         
         
         weights, biases = self.initialize_NN()
-        self.pred_next_state = self.model(tf.concat([self.cur_state_tf, self.desired_next_state_tf],1), weights, biases, 1.0)
+        self.pred_next_state = self.model(tf.concat([self.cur_state_tf, self.desired_next_pose],1), weights, biases, 1.0)
         
         self.state_loss  = tf.losses.mean_squared_error(self.next_state_tf, self.pred_next_state)
         
         if self.deriv:
+            self.desired_next_vel = tf.placeholder(tf.float32, [None, 6], name="desired_next_vel")
             self.desired_acc = tf.placeholder(tf.float32, [None, 6], name="desired_acc")
             self.desired_next_acc = tf.placeholder(tf.float32, [None, 6], name="desired_next_acc")
             
             self.deriv_current_state_tf = tf.concat([self.vel, self.desired_acc],1)
             self.deriv_next_state_tf = tf.concat([self.next_vel,self.desired_next_acc],1)
-            self.pred_deriv_next_state_tf =self.auto_diff(self.cur_state_tf, self.desired_next_state_tf, self.deriv_current_state_tf, self.deriv_next_state_tf, self.pred_next_state)
+            self.pred_deriv_next_state_tf =self.auto_diff(self.cur_state_tf, self.desired_next_pose, self.deriv_current_state_tf, self.desired_next_vel, self.pred_next_state)
 
             self.deriv_loss = tf.losses.mean_squared_error(self.pred_deriv_next_state_tf, self.deriv_next_state_tf)
          
@@ -158,8 +157,7 @@ class NeuralNet():
                              self.vel:train_data['vel'],
                              self.next_pose:train_data['next_pose'],
                              self.next_vel:train_data['next_vel'],
-                             self.desired_next_pose:train_data['desired_next_pose'],
-                             self.desired_next_vel:train_data['desired_next_vel']}
+                             self.desired_next_pose:train_data['desired_next_pose']}
                 _,train_state_loss = self.sess.run([self.optimizer, self.loss], feed_dict)
                 if i%eval_interval==0:
                     eval_state_loss = self.evaluation(eval_data)
@@ -167,7 +165,7 @@ class NeuralNet():
                     _eval_state_loss.append(eval_state_loss)
                     print(i,train_state_loss, eval_state_loss)
         if save:
-            self.saver.save(self.sess, './'+exp_name)
+            self.saver.save(self.sess, './m_index_'+exp_name)
                     
         return _train_total_loss, _train_state_loss, _train_deriv_loss, _eval_total_loss, _eval_state_loss, _eval_deriv_loss
     
@@ -190,8 +188,7 @@ class NeuralNet():
                         self.vel:eval_data['vel'],
                         self.next_pose:eval_data['next_pose'],
                         self.next_vel:eval_data['next_vel'],
-                        self.desired_next_pose:eval_data['desired_next_pose'],
-                        self.desired_next_vel:eval_data['desired_next_vel']}
+                        self.desired_next_pose:eval_data['desired_next_pose']}
             state_loss = self.sess.run(self.state_loss, feed_dict)
             return state_loss
         
@@ -200,8 +197,7 @@ class NeuralNet():
         # data를 이용하여 feed
         feed_dict ={self.pose:data['pose'],
                     self.vel:data['vel'],
-                    self.desired_next_pose:data['desired_next_pose'],
-                    self.desired_next_vel:data['desired_next_vel']}
+                    self.desired_next_pose:data['desired_next_pose']}
         
         return self.sess.run(self.pred_next_state, feed_dict)
     
@@ -282,7 +278,7 @@ class NeuralNet_Manipulability():
         
         return loss
     
-    def predict(self, data):
-        feed_dict = {self.pose:data['pose']}
+    def predict(self, pose):
+        feed_dict = {self.pose:pose}
         
         return self.sess.run(self.pred_m_index, feed_dict)
