@@ -171,27 +171,27 @@ class NeuralNet():
                     
         return _train_total_loss, _train_state_loss, _train_deriv_loss, _eval_total_loss, _eval_state_loss, _eval_deriv_loss
     
-    def evaluation(self, data):
+    def evaluation(self, eval_data):
         # data를 이용하여 feed
 
         if self.deriv:
-            feed_dict ={self.pose:data['pose'],
-                        self.vel:data['vel'],
-                        self.desired_acc:data['acc'],
-                        self.next_pose:data['next_pose'],
-                        self.next_vel:data['next_vel'],
-                        self.desired_next_acc:data['next_acc'],
-                        self.desired_next_pose:data['desired_next_pose'],
-                        self.desired_next_vel:data['desired_next_vel']}
+            feed_dict ={self.pose:eval_data['pose'],
+                        self.vel:eval_data['vel'],
+                        self.desired_acc:eval_data['acc'],
+                        self.next_pose:eval_data['next_pose'],
+                        self.next_vel:eval_data['next_vel'],
+                        self.desired_next_acc:eval_data['next_acc'],
+                        self.desired_next_pose:eval_data['desired_next_pose'],
+                        self.desired_next_vel:eval_data['desired_next_vel']}
             total_loss, state_loss, deriv_loss = self.sess.run([self.loss, self.state_loss, self.deriv_loss], feed_dict)
             return total_loss, state_loss, deriv_loss
         else:
-            feed_dict ={self.pose:data['pose'],
-                        self.vel:data['vel'],
-                        self.next_pose:data['next_pose'],
-                        self.next_vel:data['next_vel'],
-                        self.desired_next_pose:data['desired_next_pose'],
-                        self.desired_next_vel:data['desired_next_vel']}
+            feed_dict ={self.pose:eval_data['pose'],
+                        self.vel:eval_data['vel'],
+                        self.next_pose:eval_data['next_pose'],
+                        self.next_vel:eval_data['next_vel'],
+                        self.desired_next_pose:eval_data['desired_next_pose'],
+                        self.desired_next_vel:eval_data['desired_next_vel']}
             state_loss = self.sess.run(self.state_loss, feed_dict)
             return state_loss
         
@@ -204,3 +204,85 @@ class NeuralNet():
                     self.desired_next_vel:data['desired_next_vel']}
         
         return self.sess.run(self.pred_next_state, feed_dict)
+    
+    
+class NeuralNet_Manipulability():
+    def __init__(self, layers):
+        self.layers = layers
+        
+    def initialize_NN(self):        
+        weights = []
+        biases = []
+        num_layers = len(self.layers) 
+        for l in range(0,num_layers-1):
+            W = self.xavier_init(size=[self.layers[l], self.layers[l+1]])
+            b = tf.Variable(tf.zeros([1,self.layers[l+1]], dtype=tf.float32), dtype=tf.float32)
+            weights.append(W)
+            biases.append(b)        
+        return weights, biases
+
+    def xavier_init(self,size):
+        in_dim = size[0]
+        out_dim = size[1]        
+        xavier_stddev = np.sqrt(2/(in_dim + out_dim))
+        return tf.Variable(tf.truncated_normal([in_dim, out_dim], stddev=xavier_stddev), dtype=tf.float32)
+
+    def model(self, X, weights, biases,alpha):
+        num_layers = len(weights) + 1
+        H = X
+        W = weights[0]
+        b = biases[0]
+        H = alpha*tf.add(tf.matmul(H, W), b)*tf.nn.sigmoid(tf.add(tf.matmul(H, W), b))
+        for l in range(1,num_layers-2):
+            W = weights[l]
+            b = biases[l]
+            H = alpha*tf.add(tf.matmul(H, W), b)*tf.nn.sigmoid(tf.add(tf.matmul(H, W), b))
+        W = weights[-1]
+        b = biases[-1]
+        Y = tf.add(tf.matmul(H, W), b)
+        
+        return Y
+    
+    def build_graph(self):
+        tf.reset_default_graph()
+        self.sess = tf.Session()
+        
+        self.pose = tf.placeholder(tf.float32, [None, 6], name="pose")
+        self.m_index = tf.placeholder(tf.float32, [None, 1], name="m_index")
+        
+        weights, biases = self.initialize_NN()
+        self.pred_m_index = self.model(self.pose, weights, biases, 1.0)
+        self.loss  = tf.losses.mean_squared_error(self.pred_m_index, self.m_index)
+        
+        
+        self.optimizer = tf.train.AdamOptimizer(learning_rate=0.001).minimize(self.loss)
+        self.sess.run(tf.global_variables_initializer())    
+        self.saver = tf.train.Saver()
+        
+        
+    def train(self, epoch, train_data, eval_data, exp_name, save=True, eval_interval=100):
+        _train_loss = []
+        _eval_loss = []
+        
+        for i in range(epoch):
+            feed_dict = {self.pose:train_data['pose'],
+                        self.m_index:train_data['m_index']}
+            _,train_loss, eval_loss = self.sess.run([self.optimizer, self.loss], feed_dict)
+            if i%eval_interval==0:
+                eval_loss = self.evaluation(eval_data)
+                _train_loss.append(train_loss)
+                _eval_loss.append(eval_loss)
+                print(i,train_loss, eval_loss)
+        
+        
+    def evaluation(self, eval_data):
+        feed_dict = {self.pose:eval_data['pose'],
+                    self.m_index:eval_data['m_index']}
+        loss = self.sess.run(self.loss, feed_dict)
+        
+        return loss
+    
+    def predict(self, data):
+        feed_dict = {self.pose:data['pose']}
+        
+        return self.sess.run(self.pred_m_index, feed_dict)
