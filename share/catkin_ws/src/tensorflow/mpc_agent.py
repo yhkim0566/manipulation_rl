@@ -1,6 +1,7 @@
 #!/usr/bin/python
 # -*- coding: utf8 -*- 
 
+from pyexpat import model
 import tensorflow as tf
 import numpy as np
 import time
@@ -23,10 +24,16 @@ IDLE = 6
 
 class MPC_Agent():
     
-    def __init__(self, time_horizon = 10, num_action = 729):
+    def __init__(self, model, m_model, gen_traj, time_horizon, num_action, thread_rate=40):
         self.horizon = time_horizon
         self.num_action = num_action
+        self.gen_traj = gen_traj
         self.unit_coeff = 0.003
+        self.model = model
+        self.m_model = m_model
+        self.thread_rate = thread_rate
+        self.rate = rospy.Rate(self.thread_rate) 
+        
         self.real_ik_result_pub = rospy.Publisher('/real/ik_result', Float64MultiArray, queue_size=10)
         
         self.real_pose_sub = rospy.Subscriber('/real/current_pose_rpy', Float64MultiArray, self.real_pose_callback)
@@ -34,7 +41,7 @@ class MPC_Agent():
         self.real_m_index_sub = rospy.Subscriber('/real/m_index', Float64, self.real_m_index_callback)
 
 
-    def get_optimal_action(self,state, goal, random_vel_coeff, model, m_model):
+    def get_optimal_action(self,state, random_vel_coeff):
         
         #current state를 num action만큼 복사 states.shape = (num_actions, 6)
         states = np.tile(state,(self.num_action,1)) 
@@ -46,69 +53,78 @@ class MPC_Agent():
         
         total_costs = np.zeros(self.num_action)
         for i in range(self.horizon):
-            next_states = model.predict(states,action)
-            total_costs += self.cost_fn(next_states, goal, m_model)*np.power(0.99,i)
+            next_states = self.model.predict(states,action)
+            total_costs += self.cost_fn(next_states)*np.power(0.99,i)
             action = next_states[:,0:6] + np.asarray(list(product([-1,0,1],repeat=6))) * random_vel_coeff * self.unit_coeff
             states = next_states
              
         return first_actions[np.argmin(total_costs),:].flatten()
     
-    def run_policy(self, num_episode, episode_length, model, dataset):
+    def run_policy(self, num_episode, episode_length, datasets):
         for i in range(num_episode):
             total_reward = 0.0
             random_vel_coeff = np.random.randint(1,4,1)
+            print('reset the episode and generate random goal')
             state = self.reset()
-            print('reset the episode')
             
-            goal = self.get_goal()
-            print('generate random goal')
+            desired_next_state = self.get_optimal_action(state, random_vel_coeff)
             
-            desired_next_state = self.get_optimal_action(state, goal, random_vel_coeff, model)
-            
-            for j in range(episode_length): 
+            for j in range(episode_length):
+                dataset = defaultdict(list) 
                 dataset['real_cur_pos'].append(np.expand_dims(state[0:6],1).transpose())
                 dataset['real_cur_vel'].append(np.expand_dims(state[6:12],1).transpose())
                 dataset['real_m_index'].append(self.real_m_index)
                 
                 dataset['desired_next_pos'].append(np.expand_dims(desired_next_state,1).transpose())
                 
-                next_state,reward = self.step(desired_next_state)
+                next_state, reward = self.step(desired_next_state)
                 total_reward += reward
-                desired_next_state = self.get_optimal_action(s, g, model)
+                desired_next_state = self.get_optimal_action(state, random_vel_coeff)
                 state = next_state
                 
                 dataset['real_next_pos'].append(np.expand_dims(state[0:6],1).transpose())
                 dataset['real_next_vel'].append(np.expand_dims(state[6:12],1).transpose())
                 
                 dataset['reward'].append(reward)
-            dataset['total_reward'].append(total_reward)        
+            dataset['total_reward'].append(total_reward)    
+            datasets.append(dataset)    
+
+            self.update_models()
+            
+        return datasets
     
-    
-    def cost_fn(self, pred_next_states, goal, m_model):
+    def update_models(self):
+        self.model.train(epoch=100, train_data, eval_data, exp_name, save=True, eval_interval=10)
+        self.m_model.train(epoch=100, train_data, eval_data, exp_name, save=True, eval_interval=10)
         
-        scores = (pred_next_states-goal)**2
-        scores += m_model.predict(pred_next_states)
+    
+    def cost_fn(self, pred_next_states):
+        
+        scores = (pred_next_states-self.goal)**2
+        scores += self.m_model.predict(pred_next_states)
         
         return scores
     
     def reset(self):
 
-        # To do
-        # go to random initial pose command instead of INIT mode
-        rospy.set_param('/real/mode', IDLE)
-        target_traj, traj_vel, traj_acc, target_traj_length = GenTraj.generate_online_trajectory_and_go_to_init(index = 1)
+        target_traj, _, _, _ = self.gen_traj.generate_online_trajectory_and_go_to_init(index = 1)
+        self.goal = target_traj[-1]
         state = self.get_robot_state()
 
         return state
-    
         
     def step(self, desired_next_pose):
         
-        desired_next_pose = GenTraj.solve_ik_by_moveit(desired_next_pose)
+        # ik solve for publishing target joint angle
+        desired_next_pose = self.gen_traj.solve_ik_by_moveit(desired_next_pose)
         self.real_ik_result_pub.publish(desired_next_pose)
         
+        #wait robot moving
+        self.rate.sleep() 
+        
+        # get state and evaluate reward
         state = self.get_robot_state()
-        reward = self.cost_fn()
+        reward = self.cost_fn(state)
         
         return state, reward
          
@@ -125,12 +141,9 @@ class MPC_Agent():
 
     def real_m_index_callback(self, data):
         self.real_m_index = data.data   
-
-    def get_goal(self):
-        goal = ''
-        return goal
+        
  
-def make_dataset(datasets, ratio=0.8):
+def split_dataset(datasets, ratio=0.8):
     # get dataset episode size, random sampling 8:2
     dataset_size = datasets.shape[0]
     dataset_index = range(dataset_size)
@@ -163,27 +176,35 @@ def main():
     NN_Manip.build_graph()
     
     
+    # generate trajectory class and go to init pose
+    gen_traj = GenerateOfflineTrajectory(thread_rate = 40, real = True, unity = False)    
+    
     # init ros node and go to init pose
     rospy.init_node("mpc_loop", anonymous=True)
     rospy.set_param('/real/mode', INIT)
     time.sleep(5)    
         
-
-    if load_model:
-        NN.saver.restore(NN.sess,'./'+exp_name)
-        NN_Manip.saver.restore(NN_Manip.sess,'./m_index_'+exp_name)    
         
-    else:
-        # collect initial dataset
-        gen_traj = GenerateOfflineTrajectory(thread_rate = 40, real = True, unity = False)
+    # neural network model load or train
+    if not load_model:
+         # collect initial dataset
         datasets = gen_traj.start_data_collection(episode_num = 10, index = 1)
-        
-        train_data, eval_data = make_dataset(datasets)
+        train_data, eval_data = split_dataset(datasets)
         
         # train models using offline dataset
         train_total_loss, train_state_loss, train_deriv_loss, eval_total_loss, eval_state_loss, eval_deriv_loss = NN.train(epoch, train_data, eval_data, exp_name, save=True,eval_interval=10)
         m_train_loss, m_eval_loss = NN_Manip.train(epoch, train_data, eval_data, exp_name, save=True,eval_interval=10)
         
+    else:
+        NN.saver.restore(NN.sess,'./saved_model/'+exp_name)
+        NN_Manip.saver.restore(NN_Manip.sess,'./saved_model/m_index_'+exp_name)    
+    
+    
+    # mpc loop
+    agent = MPC_Agent(model = NN, m_model = NN_Manip, gen_traj = gen_traj, time_horizon = 10, num_action = 729)
+    agent.run_policy(num_episode = 10, episode_length = 200, dataset = datasets)
+    
+    
 if __name__ == '__main__':
     main()
 

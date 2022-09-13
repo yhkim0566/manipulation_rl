@@ -165,7 +165,7 @@ class NeuralNet():
                     _eval_state_loss.append(eval_state_loss)
                     print(i,train_state_loss, eval_state_loss)
         if save:
-            self.saver.save(self.sess, './m_index_'+exp_name)
+            self.saver.save(self.sess, './saved_model/'+exp_name)
                     
         return _train_total_loss, _train_state_loss, _train_deriv_loss, _eval_total_loss, _eval_state_loss, _eval_deriv_loss
     
@@ -193,11 +193,11 @@ class NeuralNet():
             return state_loss
         
         
-    def predict(self, data):
+    def predict(self, pose, vel, desired_next_pose):
         # data를 이용하여 feed
-        feed_dict ={self.pose:data['pose'],
-                    self.vel:data['vel'],
-                    self.desired_next_pose:data['desired_next_pose']}
+        feed_dict ={self.pose:pose,
+                    self.vel:vel,
+                    self.desired_next_pose:desired_next_pose}
         
         return self.sess.run(self.pred_next_state, feed_dict)
     
@@ -263,14 +263,18 @@ class NeuralNet_Manipulability():
         for i in range(epoch):
             feed_dict = {self.pose:train_data['pose'],
                         self.m_index:train_data['m_index']}
-            _,train_loss, eval_loss = self.sess.run([self.optimizer, self.loss], feed_dict)
+            _,train_loss = self.sess.run([self.optimizer, self.loss], feed_dict)
             if i%eval_interval==0:
                 eval_loss = self.evaluation(eval_data)
                 _train_loss.append(train_loss)
                 _eval_loss.append(eval_loss)
                 print(i,train_loss, eval_loss)
         
-        
+        if save:
+            self.saver.save(self.sess, './saved_model/m_index_'+exp_name)
+            
+        return _train_loss, _eval_loss
+            
     def evaluation(self, eval_data):
         feed_dict = {self.pose:eval_data['pose'],
                     self.m_index:eval_data['m_index']}

@@ -5,7 +5,6 @@
 import numpy as np
 import time
 from collections import defaultdict
-from move_group_python_interface import MoveGroupPythonInteface
 ## standard library
 import sys
 #print(sys.executable) # python version
@@ -17,7 +16,7 @@ from sensor_msgs.msg import JointState
 from geometry_msgs.msg import PoseStamped, Quaternion, Pose
 from std_msgs.msg import Float64MultiArray, Float64
 from tf.transformations import quaternion_from_euler
-from ur10_teleop_interface.srv import SolveIk 
+from  import SolveIk 
 # ik 푸는거 사라짐.. movegroup에서도 service 형태가 있었는데 없어졌고
 # ik를 풀어서 pulish to teleop_controller
 
@@ -238,7 +237,7 @@ class GenerateOfflineTrajectory(object):
         if self.unity:
             rospy.wait_for_service('/unity/solve_ik')
             try:
-                solve_ik = rospy.ServiceProxy('/unity/solve_ik', SolveIk)
+                #solve_ik = rospy.ServiceProxy('/unity/solve_ik', SolveIk)
                 res = solve_ik(target_pose)
                 return res
             except rospy.ServiceException as e:
@@ -246,7 +245,7 @@ class GenerateOfflineTrajectory(object):
         if self.real:
             rospy.wait_for_service('/real/solve_ik')
             try:
-                solve_ik = rospy.ServiceProxy('/real/solve_ik', SolveIk)
+                #solve_ik = rospy.ServiceProxy('/real/solve_ik', SolveIk)
                 res = solve_ik(target_pose)
                 return res
             except rospy.ServiceException as e:
