@@ -27,7 +27,7 @@ class MPC_Agent():
         self.horizon = time_horizon
         self.num_action = num_action
         self.gen_traj = gen_traj
-        self.unit_coeff = 0.01
+        self.unit_coeff = 0.005
         self.model = model
         self.m_model = m_model
         self.thread_rate = thread_rate
@@ -40,7 +40,7 @@ class MPC_Agent():
         self.real_m_index_sub = rospy.Subscriber('/real/m_index', Float64, self.real_m_index_callback)
 
 
-    def get_optimal_action(self,state, random_vel_coeff):
+    def get_optimal_action(self,state, vel_coeff):
         
         #current state를 num action만큼 복사 states.shape = (num_actions, 6)
         states = np.tile(state,(self.num_action,1)) 
@@ -48,14 +48,14 @@ class MPC_Agent():
         # action = desired next pose (state = pose and vel)
         # action.shape = (num_actions, 6), make all possible actions for 6 DOF
         #first_actions = states[:,0:6] + np.asarray(list(product([-1,0,1],repeat=6))) * random_vel_coeff * self.unit_coeff
-        first_actions = np.concatenate([states[:,0:3] + np.asarray(list(product([-1,0,1],repeat=3))) * random_vel_coeff * self.unit_coeff,states[:,3:6]],1)
+        first_actions = np.concatenate([states[:,0:3] + np.asarray(list(product([-1,-0.5,0,0.5,1],repeat=3))) * vel_coeff * self.unit_coeff,states[:,3:6]],1)
         action = first_actions
         
         total_costs = np.zeros(self.num_action)
         for i in range(self.horizon):
             next_states = self.model.predict(states[:,0:6],states[:,6:12],action)
-            total_costs += self.cost_fn(next_states)*np.power(0.99,i)
-            first_actions = np.concatenate([states[:,0:3] + np.asarray(list(product([-1,0,1],repeat=3))) * random_vel_coeff * self.unit_coeff,states[:,3:6]],1)
+            total_costs += self.cost_fn(next_states)*np.power(0.5,i)
+            first_actions = np.concatenate([states[:,0:3] + np.asarray(list(product([-1,-0.5,0,0.5,1],repeat=3))) * vel_coeff * self.unit_coeff,states[:,3:6]],1)
             #action = next_states[:,0:6] + np.asarray(list(product([-1,0,1],repeat=6))) * random_vel_coeff * self.unit_coeff
             states = next_states
              
@@ -64,11 +64,11 @@ class MPC_Agent():
     def run_policy(self, num_episode, episode_length, datasets):
         for i in range(num_episode):
             total_reward = 0.0
-            random_vel_coeff = np.random.randint(1,4,1)
+            vel_coeff = episode_length*0.01
             print('reset the episode and generate random goal')
             state = self.reset()
             rospy.set_param('/real/mode', JOINT_CONTROL)
-            desired_next_pose = self.get_optimal_action(state, random_vel_coeff)
+            desired_next_pose = self.get_optimal_action(state, vel_coeff)
             for j in range(episode_length):
                 #dataset = defaultdict(list) 
                 #dataset['real_cur_pos'].extend(np.expand_dims(state[0:6],1).transpose())
@@ -76,11 +76,14 @@ class MPC_Agent():
                 #dataset['real_m_index'].extend(self.real_m_index)
                 
                 #dataset['desired_next_pos'].extend(np.expand_dims(desired_next_state,1).transpose())
-                
+                vel_coeff = (episode_length-j)*0.01
                 next_state, reward = self.step(desired_next_pose)
                 total_reward += reward
-                desired_next_pose = self.get_optimal_action(state, random_vel_coeff)
+                desired_next_pose = self.get_optimal_action(state, vel_coeff)
                 state = next_state
+                if reward < np.sqrt(3*self.unit_coeff**2): ## minimum moving resolution < sqrt(x_resolution^2 + y_resolution^2 + z_resolution^2)
+                    print('arrived at the goal')
+                    break
                 print(reward)
                 #dataset['real_next_pos'].extend(np.expand_dims(state[0:6],1).transpose())
                 #dataset['real_next_vel'].extend(np.expand_dims(state[6:12],1).transpose())
@@ -100,16 +103,18 @@ class MPC_Agent():
     
     def cost_fn(self, pred_next_states):
         
-        scores = np.mean((pred_next_states[:,0:6]-self.goal)**2,1)
-        #scores += self.m_model.predict(pred_next_states[:,0:6]).flatten()*0.01
-        
+        distance_cost = np.sqrt(np.mean((pred_next_states[:,0:3]-self.goal[0:3])**2,1))
+        #manipulability_cost = -self.m_model.predict(pred_next_states[:,0:6]).flatten()*0.005
+        #print(distance_cost, manipulability_cost)
+        scores = distance_cost #+ manipulability_cost
         return scores
     
     def reward_fn(self, state):
         
-        scores = np.mean((state[:,0:6]-self.goal)**2,1)
-        #scores += self.m_model.predict(state[:,0:6]).flatten()*0.01
-
+        distance_cost = np.sqrt(np.mean((state[:,0:3]-self.goal[0:3])**2,1))
+        #manipulability_cost = -self.m_model.predict(state[:,0:6]).flatten()*0.005
+        #print(distance_cost, manipulability_cost)
+        scores = distance_cost # + manipulability_cost
         return scores
     
     def reset(self):
@@ -125,7 +130,7 @@ class MPC_Agent():
         # ik solve for publishing target joint angle
         target_pose = self.gen_traj.input_conversion(desired_next_pose)
         target_angle = self.gen_traj.solve_ik_by_moveit(target_pose)
-        for i in range(1):
+        for i in range(5):
             self.real_ik_result_pub.publish(target_angle)
         
         #wait robot moving
@@ -178,17 +183,22 @@ def split_and_arrange_dataset(datasets, ratio=0.8):
 
        
 def main():
-    rospy.init_node("mpc_loop", anonymous=True)
+    
     load_model = True
     load_dataset = True
+    save = True
+    mpc = True
+    deriv = True
+    rospy.init_node("mpc_loop", anonymous=True)
+
     # define transition model neural network
     epoch = 10000
     eval_interval = 100
-    exp_name = 'deriv_test'
+    manip_model_name = 'deriv_test'
+    model_name = 'deriv_test_3000'
     layers = [18,100,100,100,12]
-    save = True
     
-    NN = NeuralNet(layers, activation = None, deriv=True)
+    NN = NeuralNet(layers, activation = None, deriv=deriv)
     NN.build_graph()
     
     # define manipulability model neural network
@@ -215,32 +225,32 @@ def main():
         else:
             datasets = gen_traj.start_data_collection(episode_num = 10, index = 1)
         
-        train_data, eval_data = split_and_arrange_dataset(datasets)
+        train_data, eval_data = split_and_arrange_dataset(datasets,ratio=0.95)
         
         # train models using offline dataset
-        epoch = 1000
-        eval_interval = 100
-        train_total_loss, train_state_loss, train_deriv_loss, eval_total_loss, eval_state_loss, eval_deriv_loss = NN.train(epoch, train_data, eval_data, exp_name, save, eval_interval)
+        epoch = 3000
+        train_total_loss, train_state_loss, train_deriv_loss, eval_total_loss, eval_state_loss, eval_deriv_loss = NN.train(epoch, train_data, eval_data, model_name, save, eval_interval)
         
         epoch = 1000
         eval_interval = 100
-        m_train_loss, m_eval_loss = NN_Manip.train(epoch, train_data, eval_data, exp_name, save, eval_interval)
+        m_train_loss, m_eval_loss = NN_Manip.train(epoch, train_data, eval_data, manip_model_name, save, eval_interval)
         
     else:
         datasets = np.load('./dataset/datasets_damp_2500.npy', encoding='bytes')
         train_data, eval_data = split_and_arrange_dataset(datasets) # 저장된 train eval data 불러와야함. (cheating 가능성)
         
-        NN.saver.restore(NN.sess,'./saved_model/'+exp_name)
-        NN_Manip.saver.restore(NN_Manip.sess,'./saved_model/m_index_'+exp_name)    
+        NN.saver.restore(NN.sess,'./saved_model/'+model_name)
+        NN_Manip.saver.restore(NN_Manip.sess,'./saved_model/m_index_'+manip_model_name)    
         
     
     # mpc loop
-    num_action = 3*3*3 # all combinations of [-1,0,1] for 6dof
-    agent = MPC_Agent(model = NN, m_model = NN_Manip, gen_traj = gen_traj, time_horizon = 1, num_action = num_action)
-    datasets = agent.run_policy(num_episode = 10, episode_length = 200, datasets = train_data)
+    if mpc:
+        num_action = 5*5*5 # all combinations of [-1,0,1] for 6dof
+        agent = MPC_Agent(model = NN, m_model = NN_Manip, gen_traj = gen_traj, time_horizon = 1, num_action = num_action)
+        datasets = agent.run_policy(num_episode = 10, episode_length = 500, datasets = train_data)
     
-    filename = 'datasets_damp_2500.npy'
-    np.save('./'+filename,datasets)
+    #filename = 'datasets_damp_2500.npy'
+    #np.save('./'+filename,datasets)
 if __name__ == '__main__':
     main()
 

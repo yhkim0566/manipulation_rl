@@ -1,2 +1,2 @@
-model_checkpoint_path: "m_index_deriv_test"
-all_model_checkpoint_paths: "m_index_deriv_test"
+model_checkpoint_path: "naive_test_3000"
+all_model_checkpoint_paths: "naive_test_3000"
