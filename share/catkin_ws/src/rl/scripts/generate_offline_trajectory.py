@@ -193,6 +193,27 @@ class GenerateOfflineTrajectory(object):
             x0 = self.unity_pose
         if self.real:
             x0 = self.real_pose
+        
+        
+        x0 = np.asarray(x0)
+        
+        if x0[3] > self.initial_pose[3] + 0.3:
+            x0[3] = x0[3] - np.pi
+            
+        if x0[4] >self.initial_pose[4] + 0.3: # 0.3은 orientation range 보다 조금 더 큰 값 
+            x0[4] = x0[4] - np.pi
+        
+        if x0[5] > self.initial_pose[5] +0.3:
+            x0[5] = x0[5] - np.pi
+            
+        if x0[3] < self.initial_pose[3] - 0.3:
+            x0[3] = x0[3] + np.pi  
+              
+        if x0[4] < self.initial_pose[4] - 0.3: # 0.3은 orientation range 보다 조금 더 큰 값 
+            x0[4] = x0[4] + np.pi
+        
+        if x0[5] < self.initial_pose[5] - 0.3:
+            x0[5] = x0[5] + np.pi
             
         amp, bias, freq = self.generate_init_random_cosine_trajectory_parameter(np.asarray(x0),np.asarray(xf),duration)
 

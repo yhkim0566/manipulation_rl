@@ -256,7 +256,7 @@ class NeuralNet_Manipulability():
         self.saver = tf.train.Saver()
         
         
-    def train(self, epoch, train_data, eval_data, exp_name, save=True, eval_interval=100):
+    def train(self, epoch, train_data, eval_data, save=True, eval_interval=100):
         _train_loss = []
         _eval_loss = []
         
@@ -271,7 +271,7 @@ class NeuralNet_Manipulability():
                 print(i,train_loss, eval_loss)
         
         if save:
-            self.saver.save(self.sess, './saved_model/m_index_'+exp_name)
+            self.saver.save(self.sess, './saved_model/m_index')
             
         return _train_loss, _eval_loss
             

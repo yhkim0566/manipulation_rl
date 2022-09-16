@@ -12,9 +12,9 @@ from mpl_toolkits import mplot3d
 
 def main():
     path = '/root/share/catkin_ws/src/ur10_teleop_interface/scripts/'
-    filename = 'datasets_damp_2500.npy'
-    datasets = np.load('./dataset/datasets_damp_2500.npy', encoding='bytes')
-    
+    filename = 'ntraj50_params_ori02_xyz_08_05_in_055_03.npy'
+    datasets = np.load('./dataset/ntraj50_params_ori02_xyz_08_05_in_055_03.npy', encoding='bytes')
+    '''
     ratio = 0.8
     dataset_size = datasets.shape[0]
     dataset_index = np.linspace(0,dataset_size-1,dataset_size,dtype=int)
@@ -36,8 +36,8 @@ def main():
     print(np.max(np.asarray(m_index)))
     plt.hist(m_index)
     plt.show()
-    
     '''
+    
     fig = plt.figure(figsize=(30,20))
     
     ax1 = fig.add_subplot(3,2,1, projection='3d')
@@ -115,12 +115,9 @@ def main():
         
     plt.legend(fontsize=15)
     plt.show()
-    fig.savefig('./trajectories.png')
-    fig.savefig('./trajectories.pdf',dpi=600)
-    '''
-    '''
+    fig.savefig('./trajectories_ntraj50_params_ori02_xyz_08_05_in_055_03.png')
+    fig.savefig('./trajectories_ntraj50_params_ori02_xyz_08_05_in_055_03.pdf',dpi=600)
 
-    ''' 
 if __name__ == '__main__':
     main()
     

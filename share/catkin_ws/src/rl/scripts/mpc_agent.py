@@ -194,7 +194,6 @@ def main():
     # define transition model neural network
     epoch = 10000
     eval_interval = 100
-    manip_model_name = 'deriv_test'
     model_name = 'deriv_test_3000'
     layers = [18,100,100,100,12]
     
@@ -233,14 +232,14 @@ def main():
         
         epoch = 1000
         eval_interval = 100
-        m_train_loss, m_eval_loss = NN_Manip.train(epoch, train_data, eval_data, manip_model_name, save, eval_interval)
+        m_train_loss, m_eval_loss = NN_Manip.train(epoch, train_data, eval_data, save, eval_interval)
         
     else:
         datasets = np.load('./dataset/datasets_damp_2500.npy', encoding='bytes')
         train_data, eval_data = split_and_arrange_dataset(datasets) # 저장된 train eval data 불러와야함. (cheating 가능성)
         
         NN.saver.restore(NN.sess,'./saved_model/'+model_name)
-        NN_Manip.saver.restore(NN_Manip.sess,'./saved_model/m_index_'+manip_model_name)    
+        NN_Manip.saver.restore(NN_Manip.sess,'./saved_model/m_index')    
         
     
     # mpc loop
