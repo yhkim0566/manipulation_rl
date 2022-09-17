@@ -27,7 +27,7 @@ class MPC_Agent():
         self.horizon = time_horizon
         self.num_action = num_action
         self.gen_traj = gen_traj
-        self.unit_coeff = 0.005
+        self.unit_coeff = 0.03
         self.model = model
         self.m_model = m_model
         self.thread_rate = thread_rate
@@ -48,14 +48,14 @@ class MPC_Agent():
         # action = desired next pose (state = pose and vel)
         # action.shape = (num_actions, 6), make all possible actions for 6 DOF
         #first_actions = states[:,0:6] + np.asarray(list(product([-1,0,1],repeat=6))) * random_vel_coeff * self.unit_coeff
-        first_actions = np.concatenate([states[:,0:3] + np.asarray(list(product([-1,-0.5,0,0.5,1],repeat=3))) * vel_coeff * self.unit_coeff,states[:,3:6]],1)
+        first_actions = np.concatenate([states[:,0:3] + np.asarray(list(product([-1,-0.75,-0.5,-0.25,0,0.25,0.5,0.75,1],repeat=3))) * vel_coeff * self.unit_coeff,states[:,3:6]],1)
         action = first_actions
         
         total_costs = np.zeros(self.num_action)
         for i in range(self.horizon):
             next_states = self.model.predict(states[:,0:6],states[:,6:12],action)
-            total_costs += self.cost_fn(next_states)*np.power(0.5,i)
-            first_actions = np.concatenate([states[:,0:3] + np.asarray(list(product([-1,-0.5,0,0.5,1],repeat=3))) * vel_coeff * self.unit_coeff,states[:,3:6]],1)
+            total_costs += self.cost_fn(next_states)*np.power(0.3,i)
+            first_actions = np.concatenate([states[:,0:3] + np.asarray(list(product([-1,-0.75,-0.5,-0.25,0,0.25,0.5,0.75,1],repeat=3))) * vel_coeff * self.unit_coeff,states[:,3:6]],1)
             #action = next_states[:,0:6] + np.asarray(list(product([-1,0,1],repeat=6))) * random_vel_coeff * self.unit_coeff
             states = next_states
              
@@ -64,7 +64,7 @@ class MPC_Agent():
     def run_policy(self, num_episode, episode_length, datasets):
         for i in range(num_episode):
             total_reward = 0.0
-            vel_coeff = episode_length*0.01
+            vel_coeff = 1.0
             print('reset the episode and generate random goal')
             state = self.reset()
             rospy.set_param('/real/mode', JOINT_CONTROL)
@@ -76,7 +76,7 @@ class MPC_Agent():
                 #dataset['real_m_index'].extend(self.real_m_index)
                 
                 #dataset['desired_next_pos'].extend(np.expand_dims(desired_next_state,1).transpose())
-                vel_coeff = (episode_length-j)*0.01
+                vel_coeff = (episode_length-j)/episode_length
                 next_state, reward = self.step(desired_next_pose)
                 total_reward += reward
                 desired_next_pose = self.get_optimal_action(state, vel_coeff)
@@ -102,16 +102,14 @@ class MPC_Agent():
         
     
     def cost_fn(self, pred_next_states):
-        
-        distance_cost = np.sqrt(np.mean((pred_next_states[:,0:3]-self.goal[0:3])**2,1))
+        distance_cost = np.sqrt(np.sum((pred_next_states[:,0:3]-self.goal[0:3])**2,1))
         #manipulability_cost = -self.m_model.predict(pred_next_states[:,0:6]).flatten()*0.005
-        #print(distance_cost, manipulability_cost)
         scores = distance_cost #+ manipulability_cost
         return scores
     
     def reward_fn(self, state):
         
-        distance_cost = np.sqrt(np.mean((state[:,0:3]-self.goal[0:3])**2,1))
+        distance_cost = np.sqrt(np.sum((state[:,0:3]-self.goal[0:3])**2))
         #manipulability_cost = -self.m_model.predict(state[:,0:6]).flatten()*0.005
         #print(distance_cost, manipulability_cost)
         scores = distance_cost # + manipulability_cost
@@ -186,15 +184,16 @@ def main():
     
     load_model = True
     load_dataset = True
-    save = True
+    save = False
     mpc = True
-    deriv = True
+    deriv = False
     rospy.init_node("mpc_loop", anonymous=True)
 
     # define transition model neural network
-    epoch = 10000
-    eval_interval = 100
-    model_name = 'deriv_test_3000'
+    if deriv:
+        model_name = 'deriv_ntraj50_params_ori02_xyz_08_05_in_055_03'
+    else:
+        model_name = 'naive_ntraj50_params_ori02_xyz_08_05_in_055_03'
     layers = [18,100,100,100,12]
     
     NN = NeuralNet(layers, activation = None, deriv=deriv)
@@ -220,7 +219,7 @@ def main():
         
          # collect initial dataset
         if load_dataset:
-            datasets = np.load('./dataset/datasets_damp_2500.npy', encoding='bytes')
+            datasets = np.load('./dataset/ntraj50_params_ori02_xyz_08_05_in_055_03.npy', encoding='bytes')
         else:
             datasets = gen_traj.start_data_collection(episode_num = 10, index = 1)
         
@@ -228,9 +227,10 @@ def main():
         
         # train models using offline dataset
         epoch = 3000
+        eval_interval = 100
         train_total_loss, train_state_loss, train_deriv_loss, eval_total_loss, eval_state_loss, eval_deriv_loss = NN.train(epoch, train_data, eval_data, model_name, save, eval_interval)
         
-        epoch = 1000
+        epoch = 3000
         eval_interval = 100
         m_train_loss, m_eval_loss = NN_Manip.train(epoch, train_data, eval_data, save, eval_interval)
         
@@ -244,7 +244,7 @@ def main():
     
     # mpc loop
     if mpc:
-        num_action = 5*5*5 # all combinations of [-1,0,1] for 6dof
+        num_action = 9*9*9 # all combinations of [-1,0,1] for 6dof
         agent = MPC_Agent(model = NN, m_model = NN_Manip, gen_traj = gen_traj, time_horizon = 1, num_action = num_action)
         datasets = agent.run_policy(num_episode = 10, episode_length = 500, datasets = train_data)
     
@@ -252,38 +252,3 @@ def main():
     #np.save('./'+filename,datasets)
 if __name__ == '__main__':
     main()
-
-
-
-'''
-pose = np.ones([729,6])
-vel = np.ones([729,6])
-desired_acc = np.ones([729,6])
-
-desired_next_pose = np.ones([729,6])
-desired_next_vel = np.ones([729,6])
-desired_next_acc = np.ones([729,6])
-
-next_pose = np.ones([729,6])
-next_vel = np.ones([729,6])
-next_acc = np.ones([729,6])
-
-m_index = np.ones([729,1])
-train_data = {}
-
-train_data['pose'] = pose
-train_data['vel'] = vel
-train_data['acc'] = desired_acc
-
-train_data['next_pose'] = next_pose
-train_data['next_vel'] = next_vel
-train_data['next_acc'] = desired_next_acc
-
-train_data['desired_next_pose'] = desired_next_pose
-train_data['desired_next_vel'] = desired_next_vel
-
-train_data['m_index'] = m_index
-eval_data = train_data
-
-
-'''

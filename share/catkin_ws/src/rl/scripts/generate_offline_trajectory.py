@@ -54,8 +54,6 @@ class GenerateOfflineTrajectory(object):
       self.real_pose_sub = rospy.Subscriber('/real/current_pose_rpy', Float64MultiArray, self.real_pose_callback)
       self.real_velocity_sub = rospy.Subscriber('/real/task_velocity', Float64MultiArray, self.real_velocity_callback)
       self.real_m_index_sub = rospy.Subscriber('/real/m_index', Float64, self.real_m_index_callback)
-    
-
         
     def unity_pose_callback(self, data):
         self.unity_pose = data.data    
@@ -90,7 +88,6 @@ class GenerateOfflineTrajectory(object):
         return t,xt,vt,at
 
     def generate_cosine_trajectories(self):
-        
         orientation_range = 0.0
         xyz_range = 0.80
         xyz_offset = 0.5
@@ -194,26 +191,7 @@ class GenerateOfflineTrajectory(object):
         if self.real:
             x0 = self.real_pose
         
-        
-        x0 = np.asarray(x0)
-        
-        if x0[3] > self.initial_pose[3] + 0.3:
-            x0[3] = x0[3] - np.pi
-            
-        if x0[4] >self.initial_pose[4] + 0.3: # 0.3은 orientation range 보다 조금 더 큰 값 
-            x0[4] = x0[4] - np.pi
-        
-        if x0[5] > self.initial_pose[5] +0.3:
-            x0[5] = x0[5] - np.pi
-            
-        if x0[3] < self.initial_pose[3] - 0.3:
-            x0[3] = x0[3] + np.pi  
-              
-        if x0[4] < self.initial_pose[4] - 0.3: # 0.3은 orientation range 보다 조금 더 큰 값 
-            x0[4] = x0[4] + np.pi
-        
-        if x0[5] < self.initial_pose[5] - 0.3:
-            x0[5] = x0[5] + np.pi
+        #x0 = self.arrange_orientation_data(x0)
             
         amp, bias, freq = self.generate_init_random_cosine_trajectory_parameter(np.asarray(x0),np.asarray(xf),duration)
 
@@ -304,11 +282,13 @@ class GenerateOfflineTrajectory(object):
     def get_dataset(self,dataset, target_pose, target_vel,target_acc):
         # state : pose , velocity
         if self.real:
+            self.real_pose = self.arrange_orientation_data(self.real_pose)
             dataset['real_cur_pos'].append(self.real_pose)
             dataset['real_cur_vel'].append(self.real_velocity)
             dataset['real_m_index'].append(self.real_m_index)
 
         if self.unity:
+            self.unity_pose = self.arrange_orientation_data(self.unity_pose)
             dataset['unity_cur_pos'].append(self.unity_pose)
             dataset['unity_cur_vel'].append(self.unity_velocity)
             dataset['unity_m_index'].append(self.unity_m_index)
