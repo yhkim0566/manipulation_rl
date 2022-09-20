@@ -28,7 +28,7 @@ class MPC_Agent():
         self.horizon = time_horizon
         self.num_action = num_action
         self.gen_traj = gen_traj
-        self.unit_coeff = 0.03
+        self.unit_coeff = 0.05
         self.model = model
         self.m_model = m_model
         self.thread_rate = thread_rate
@@ -45,21 +45,24 @@ class MPC_Agent():
         
         #current state를 num action만큼 복사 states.shape = (num_actions, 6)
         states = np.tile(state,(self.num_action,1)) 
-        orientation = states[:,3:6]
+        self.orientation = states[:,3:6]
         # action = desired next pose (state = pose and vel)
         # action.shape = (num_actions, 6), make all possible actions for 6 DOF
         #first_actions = states[:,0:6] + np.asarray(list(product([-1,0,1],repeat=6))) * random_vel_coeff * self.unit_coeff
-        first_actions = np.concatenate([states[:,0:3] + np.asarray(list(product([-1,0,1],repeat=3))) * vel_coeff * self.unit_coeff,orientation],1)
+        action_list = np.asarray(list(product([-1,-0.75,-0.5,-0.25,0,0.25,0.5,0.75,1],repeat=3)))
+        norm_action_list = action_list / (np.reshape(np.sqrt(action_list[:,0]**2+action_list[:,1]**2+action_list[:,2]**2),(-1,1))+10E-6)
+                
+        first_actions = np.concatenate([states[:,0:3] + norm_action_list * vel_coeff * self.unit_coeff,self.orientation],1)
+        #first_actions = np.concatenate([states[:,0:3] + np.random.random((self.num_action,3))*0.1-0.05,orientation],1)
         action = first_actions
         
         total_costs = np.zeros(self.num_action)
         for i in range(self.horizon):
             next_states = self.model.predict(states[:,0:6],states[:,6:12],action)
+            next_state = np.concatenate([next_states[:,0:3],self.orientation,next_states[:,3:6],next_states[:,3:6]],1)
             total_costs += self.cost_fn(next_states)*np.power(0.9,i)
-            action = np.concatenate([next_states[:,0:3] + np.asarray(list(product([-1,0,1],repeat=3))) * vel_coeff * self.unit_coeff,orientation],1)
-            
-            #states = next_states
-            states = np.concatenate([next_states[:,0:3],next_states[:,0:3],next_states[:,3:6],next_states[:,3:6]],1)
+            action = np.concatenate([next_states[:,0:3] + norm_action_list * vel_coeff * self.unit_coeff,self.orientation],1)
+            states = next_state
              
         return first_actions[np.argmin(total_costs),:].flatten()
     
@@ -83,7 +86,7 @@ class MPC_Agent():
                 total_reward += reward
                 desired_next_pose = self.get_optimal_action(state, vel_coeff)
                 state = next_state
-                if reward < np.sqrt(3*self.unit_coeff**2): ## minimum moving resolution < sqrt(x_resolution^2 + y_resolution^2 + z_resolution^2)
+                if reward < self.unit_coeff: ## minimum moving resolution < sqrt(x_resolution^2 + y_resolution^2 + z_resolution^2)
                     print('arrived at the goal')
                     break
                 print(reward)
@@ -105,15 +108,15 @@ class MPC_Agent():
     
     def cost_fn(self, pred_next_states):
         distance_cost = np.sqrt(np.sum((pred_next_states[:,0:3]-self.goal[0:3])**2,1))
-        #manipulability_cost = -self.m_model.predict(pred_next_states[:,0:6]).flatten()*0.005
+        manipulability_cost = -self.m_model.predict(pred_next_states[:,0:6]).flatten()*0.1
         scores = distance_cost #+ manipulability_cost
         return scores
     
     def reward_fn(self, state):
         
         distance_cost = np.sqrt(np.sum((state[:,0:3]-self.goal[0:3])**2))
-        #manipulability_cost = -self.m_model.predict(state[:,0:6]).flatten()*0.005
-        #print(distance_cost, manipulability_cost)
+        manipulability_cost = -self.m_model.predict(state[:,0:6]).flatten()*0.1
+        print(distance_cost, manipulability_cost)
         scores = distance_cost # + manipulability_cost
         return scores
     
@@ -130,7 +133,7 @@ class MPC_Agent():
         # ik solve for publishing target joint angle
         target_pose = self.gen_traj.input_conversion(desired_next_pose)
         target_angle = self.gen_traj.solve_ik_by_moveit(target_pose)
-        for i in range(5):
+        for i in range(3):
             self.real_ik_result_pub.publish(target_angle)
         
         #wait robot moving
@@ -246,7 +249,7 @@ def main():
         
     # mpc loop
     if mpc:
-        num_action = 3*3*3 # all combinations of [-1,0,1] for 6dof
+        num_action = 9*9*9 # all combinations of [-1,0,1] for 6dof
         agent = MPC_Agent(model = NN, m_model = NN_Manip, gen_traj = gen_traj, time_horizon = 5, num_action = num_action)
         datasets = agent.run_policy(num_episode = 10, episode_length = 500, datasets = train_data)
     
