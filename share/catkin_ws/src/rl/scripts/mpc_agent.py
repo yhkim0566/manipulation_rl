@@ -5,6 +5,7 @@ import tensorflow as tf
 import numpy as np
 import time
 from init_model import NeuralNet, NeuralNet_Manipulability
+from init_model_onlytranslation import NeuralNet_3dof
 from itertools import product
 from collections import defaultdict
 from generate_offline_trajectory import GenerateOfflineTrajectory
@@ -44,20 +45,21 @@ class MPC_Agent():
         
         #current state를 num action만큼 복사 states.shape = (num_actions, 6)
         states = np.tile(state,(self.num_action,1)) 
-
+        orientation = states[:,3:6]
         # action = desired next pose (state = pose and vel)
         # action.shape = (num_actions, 6), make all possible actions for 6 DOF
         #first_actions = states[:,0:6] + np.asarray(list(product([-1,0,1],repeat=6))) * random_vel_coeff * self.unit_coeff
-        first_actions = np.concatenate([states[:,0:3] + np.asarray(list(product([-1,-0.75,-0.5,-0.25,0,0.25,0.5,0.75,1],repeat=3))) * vel_coeff * self.unit_coeff,states[:,3:6]],1)
+        first_actions = np.concatenate([states[:,0:3] + np.asarray(list(product([-1,0,1],repeat=3))) * vel_coeff * self.unit_coeff,orientation],1)
         action = first_actions
         
         total_costs = np.zeros(self.num_action)
         for i in range(self.horizon):
             next_states = self.model.predict(states[:,0:6],states[:,6:12],action)
-            total_costs += self.cost_fn(next_states)*np.power(0.3,i)
-            first_actions = np.concatenate([states[:,0:3] + np.asarray(list(product([-1,-0.75,-0.5,-0.25,0,0.25,0.5,0.75,1],repeat=3))) * vel_coeff * self.unit_coeff,states[:,3:6]],1)
-            #action = next_states[:,0:6] + np.asarray(list(product([-1,0,1],repeat=6))) * random_vel_coeff * self.unit_coeff
-            states = next_states
+            total_costs += self.cost_fn(next_states)*np.power(0.9,i)
+            action = np.concatenate([next_states[:,0:3] + np.asarray(list(product([-1,0,1],repeat=3))) * vel_coeff * self.unit_coeff,orientation],1)
+            
+            #states = next_states
+            states = np.concatenate([next_states[:,0:3],next_states[:,0:3],next_states[:,3:6],next_states[:,3:6]],1)
              
         return first_actions[np.argmin(total_costs),:].flatten()
     
@@ -76,7 +78,7 @@ class MPC_Agent():
                 #dataset['real_m_index'].extend(self.real_m_index)
                 
                 #dataset['desired_next_pos'].extend(np.expand_dims(desired_next_state,1).transpose())
-                vel_coeff = (episode_length-j)/episode_length
+                #vel_coeff = (episode_length-j)/episode_length
                 next_state, reward = self.step(desired_next_pose)
                 total_reward += reward
                 desired_next_pose = self.get_optimal_action(state, vel_coeff)
@@ -154,6 +156,7 @@ class MPC_Agent():
     def real_m_index_callback(self, data):
         self.real_m_index = data.data   
         
+        
  
 def split_and_arrange_dataset(datasets, ratio=0.8):
     # get dataset episode size, random sampling 8:2
@@ -162,10 +165,10 @@ def split_and_arrange_dataset(datasets, ratio=0.8):
     np.random.shuffle(dataset_index)
     train_index = dataset_index[:int(dataset_size*ratio)]
     eval_index = dataset_index[int(dataset_size*ratio):]
-    
+
     train_data = datasets[train_index]
     eval_data = datasets[eval_index]
-    
+
     _train_data = defaultdict(list)
     for i in range(len(train_data)):
         for k in train_data[0].keys():
@@ -184,19 +187,19 @@ def main():
     
     load_model = True
     load_dataset = True
-    save = False
+    save = True
     mpc = True
-    deriv = False
+    deriv = True
     rospy.init_node("mpc_loop", anonymous=True)
 
     # define transition model neural network
     if deriv:
-        model_name = 'deriv_ntraj50_params_ori02_xyz_08_05_in_055_03'
+        model_name = '3dof_deriv'
     else:
-        model_name = 'naive_ntraj50_params_ori02_xyz_08_05_in_055_03'
-    layers = [18,100,100,100,12]
+        model_name = '3dof_naive'
+    layers = [9,100,100,100,6]
     
-    NN = NeuralNet(layers, activation = None, deriv=deriv)
+    NN = NeuralNet_3dof(layers, activation = None, deriv=deriv)
     NN.build_graph()
     
     # define manipulability model neural network
@@ -219,8 +222,8 @@ def main():
         
          # collect initial dataset
         if load_dataset:
-            datasets = np.load('./dataset/ntraj50_params_ori02_xyz_08_05_in_055_03.npy', encoding='bytes')
-        else:
+            datasets = np.load('./dataset/datasets_damp_2500.npy', encoding='bytes')
+        #else:
             datasets = gen_traj.start_data_collection(episode_num = 10, index = 1)
         
         train_data, eval_data = split_and_arrange_dataset(datasets,ratio=0.95)
@@ -232,7 +235,7 @@ def main():
         
         epoch = 3000
         eval_interval = 100
-        m_train_loss, m_eval_loss = NN_Manip.train(epoch, train_data, eval_data, save, eval_interval)
+        #m_train_loss, m_eval_loss = NN_Manip.train(epoch, train_data, eval_data, save, eval_interval)
         
     else:
         datasets = np.load('./dataset/datasets_damp_2500.npy', encoding='bytes')
@@ -241,11 +244,10 @@ def main():
         NN.saver.restore(NN.sess,'./saved_model/'+model_name)
         NN_Manip.saver.restore(NN_Manip.sess,'./saved_model/m_index')    
         
-    
     # mpc loop
     if mpc:
-        num_action = 9*9*9 # all combinations of [-1,0,1] for 6dof
-        agent = MPC_Agent(model = NN, m_model = NN_Manip, gen_traj = gen_traj, time_horizon = 1, num_action = num_action)
+        num_action = 3*3*3 # all combinations of [-1,0,1] for 6dof
+        agent = MPC_Agent(model = NN, m_model = NN_Manip, gen_traj = gen_traj, time_horizon = 5, num_action = num_action)
         datasets = agent.run_policy(num_episode = 10, episode_length = 500, datasets = train_data)
     
     #filename = 'datasets_damp_2500.npy'

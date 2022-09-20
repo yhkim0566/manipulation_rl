@@ -1,2 +1,2 @@
-model_checkpoint_path: "m_index"
-all_model_checkpoint_paths: "m_index"
+model_checkpoint_path: "6dof_naive"
+all_model_checkpoint_paths: "6dof_naive"
