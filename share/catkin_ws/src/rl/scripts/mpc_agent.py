@@ -67,9 +67,14 @@ class MPC_Agent():
             total_dist_reward = 0.0
             total_m_index_reward = 0.0
             vel_coeff = 1.0
+            init_pose = [0.2247873502,  0.677983984,  0.529824672,  0.0565217219, 1.54460172 , 1.50546055]
+            goal_pose = [0.59169136, 0.45289882, 0.84063907,  0.0565217219, 1.54460172 , 1.50546055]
+            
+            #init_pose = [0.45334842, 0.79876678, 0.3499672,  0.0565217219, 1.54460172 , 1.50546055]
+            #goal_pose = [-0.18659594,  0.36758037,  0.4112232 ,  0.0565217219, 1.54460172 , 1.50546055]
             print('reset the episode and generate random goal')
-            state = self.reset(init_pos= [], goal_pos=[], istest=True)
-            print(state, self.goal)
+            state = self.reset(init_pos= init_pose, goal_pos=goal_pose, istest=True)
+            print(state[:,0:6], self.goal)
             rospy.set_param('/real/mode', JOINT_CONTROL)
             desired_next_pose = self.get_optimal_action(state, vel_coeff)
             for j in range(episode_length):
@@ -88,7 +93,7 @@ class MPC_Agent():
                 if dist_reward < self.unit_coeff: ## minimum moving resolution < sqrt(x_resolution^2 + y_resolution^2 + z_resolution^2)
                     print('arrived at the goal')
                     break
-                print(dist_reward,m_index_reward)
+                #print(dist_reward,m_index_reward)
                 #dataset['real_next_pos'].extend(np.expand_dims(state[0:6],1).transpose())
                 #dataset['real_next_vel'].extend(np.expand_dims(state[6:12],1).transpose())
                 
@@ -107,17 +112,16 @@ class MPC_Agent():
     
     def cost_fn(self, pred_next_states):
         distance_cost = np.sqrt(np.sum((pred_next_states[:,0:3]-self.goal[0:3])**2,1))
-        manipulability_cost = -self.m_model.predict(pred_next_states[:,0:6]).flatten()*0.1
+        manipulability_cost = -self.m_model.predict(pred_next_states[:,0:6]).flatten()*np.mean(distance_cost)*1.5
         scores = distance_cost + manipulability_cost
         return scores
     
     def reward_fn(self, state):
         
         distance_cost = np.sqrt(np.sum((state[:,0:3]-self.goal[0:3])**2))
-        manipulability_cost = self.m_model.predict(state[:,0:6]).flatten()*0.1
+        manipulability_cost = self.m_model.predict(state[:,0:6]).flatten()
         print(distance_cost, manipulability_cost)
-        scores = distance_cost + manipulability_cost
-        return scores
+        return distance_cost, manipulability_cost
     
     def reset(self, init_pos, goal_pos, istest):
 
@@ -196,7 +200,7 @@ def main():
     load_dataset = True
     save = True
     mpc = True
-    deriv = True
+    deriv = False
     rospy.init_node("mpc_loop", anonymous=True)
 
     # define transition model neural network
