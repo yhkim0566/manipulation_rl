@@ -46,14 +46,10 @@ class MPC_Agent():
         #current state를 num action만큼 복사 states.shape = (num_actions, 6)
         states = np.tile(state,(self.num_action,1)) 
         self.orientation = states[:,3:6]
-        # action = desired next pose (state = pose and vel)
-        # action.shape = (num_actions, 6), make all possible actions for 6 DOF
-        #first_actions = states[:,0:6] + np.asarray(list(product([-1,0,1],repeat=6))) * random_vel_coeff * self.unit_coeff
         action_list = np.asarray(list(product([-1,-0.75,-0.5,-0.25,0,0.25,0.5,0.75,1],repeat=3)))
         norm_action_list = action_list / (np.reshape(np.sqrt(action_list[:,0]**2+action_list[:,1]**2+action_list[:,2]**2),(-1,1))+10E-6)
                 
         first_actions = np.concatenate([states[:,0:3] + norm_action_list * vel_coeff * self.unit_coeff,self.orientation],1)
-        #first_actions = np.concatenate([states[:,0:3] + np.random.random((self.num_action,3))*0.1-0.05,orientation],1)
         action = first_actions
         
         total_costs = np.zeros(self.num_action)
@@ -68,10 +64,12 @@ class MPC_Agent():
     
     def run_policy(self, num_episode, episode_length, datasets):
         for i in range(num_episode):
-            total_reward = 0.0
+            total_dist_reward = 0.0
+            total_m_index_reward = 0.0
             vel_coeff = 1.0
             print('reset the episode and generate random goal')
-            state = self.reset()
+            state = self.reset(init_pos= [], goal_pos=[], istest=True)
+            print(state, self.goal)
             rospy.set_param('/real/mode', JOINT_CONTROL)
             desired_next_pose = self.get_optimal_action(state, vel_coeff)
             for j in range(episode_length):
@@ -82,21 +80,22 @@ class MPC_Agent():
                 
                 #dataset['desired_next_pos'].extend(np.expand_dims(desired_next_state,1).transpose())
                 #vel_coeff = (episode_length-j)/episode_length
-                next_state, reward = self.step(desired_next_pose)
-                total_reward += reward
+                next_state, dist_reward, m_index_reward = self.step(desired_next_pose)
+                total_dist_reward += dist_reward
+                total_m_index_reward += m_index_reward
                 desired_next_pose = self.get_optimal_action(state, vel_coeff)
                 state = next_state
-                if reward < self.unit_coeff: ## minimum moving resolution < sqrt(x_resolution^2 + y_resolution^2 + z_resolution^2)
+                if dist_reward < self.unit_coeff: ## minimum moving resolution < sqrt(x_resolution^2 + y_resolution^2 + z_resolution^2)
                     print('arrived at the goal')
                     break
-                print(reward)
+                print(dist_reward,m_index_reward)
                 #dataset['real_next_pos'].extend(np.expand_dims(state[0:6],1).transpose())
                 #dataset['real_next_vel'].extend(np.expand_dims(state[6:12],1).transpose())
                 
                 #dataset['reward'].extend(reward)
             #dataset['total_reward'].extend(total_reward)    
             #datasets.append(dataset)    
-            print(total_reward)
+            print(j*self.unit_coeff, total_m_index_reward/j) ## 1step당 이동거리 * step 수 , trajectory의 평균 m_index
             #self.update_models()
             
         #return datasets
@@ -109,21 +108,26 @@ class MPC_Agent():
     def cost_fn(self, pred_next_states):
         distance_cost = np.sqrt(np.sum((pred_next_states[:,0:3]-self.goal[0:3])**2,1))
         manipulability_cost = -self.m_model.predict(pred_next_states[:,0:6]).flatten()*0.1
-        scores = distance_cost #+ manipulability_cost
+        scores = distance_cost + manipulability_cost
         return scores
     
     def reward_fn(self, state):
         
         distance_cost = np.sqrt(np.sum((state[:,0:3]-self.goal[0:3])**2))
-        manipulability_cost = -self.m_model.predict(state[:,0:6]).flatten()*0.1
+        manipulability_cost = self.m_model.predict(state[:,0:6]).flatten()*0.1
         print(distance_cost, manipulability_cost)
-        scores = distance_cost # + manipulability_cost
+        scores = distance_cost + manipulability_cost
         return scores
     
-    def reset(self):
+    def reset(self, init_pos, goal_pos, istest):
 
-        target_traj, _, _, _ = self.gen_traj.generate_online_trajectory_and_go_to_init(index = 1)
-        self.goal = target_traj[:,-1]
+        if not istest:
+            target_traj, _, _, _ = self.gen_traj.generate_online_trajectory_and_go_to_init(index = 1)
+            self.goal = target_traj[:,-1]
+        else:
+            self.gen_traj.generate_given_trajectory_and_go_to_init(index = 1, init_pos=init_pos)
+            self.goal = goal_pos
+
         state = self.get_robot_state()
 
         return state
@@ -141,9 +145,9 @@ class MPC_Agent():
         
         # get state and evaluate reward
         state = self.get_robot_state()
-        reward = self.reward_fn(state)
+        dist_reward,m_index_reward = self.reward_fn(state)
         
-        return state, reward
+        return state, dist_reward, m_index_reward
          
     def get_robot_state(self):
         pose = self.real_pose
