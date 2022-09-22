@@ -45,20 +45,22 @@ class MPC_Agent():
         
         #current state를 num action만큼 복사 states.shape = (num_actions, 6)
         states = np.tile(state,(self.num_action,1)) 
-        self.orientation = states[:,3:6]
-        action_list = np.asarray(list(product([-1,-0.75,-0.5,-0.25,0,0.25,0.5,0.75,1],repeat=3)))
-        norm_action_list = action_list / (np.reshape(np.sqrt(action_list[:,0]**2+action_list[:,1]**2+action_list[:,2]**2),(-1,1))+10E-6)
-                
-        first_actions = np.concatenate([states[:,0:3] + norm_action_list * vel_coeff * self.unit_coeff,self.orientation],1)
+        orientation = states[:,3:6]
+        action_list = np.asarray(list(product([-1,-0.5,0,0.5,1],repeat=6)))
+        norm_action_list = action_list[:,0:3] / (np.reshape(np.sqrt(action_list[:,0]**2+action_list[:,1]**2+action_list[:,2]**2),(-1,1))+10E-6)
+        orientation_action_list = action_list[:,3:6]*0.03
+                   
+        first_actions = np.concatenate([states[:,0:3] + norm_action_list * vel_coeff * self.unit_coeff,orientation + orientation_action_list],1)
         action = first_actions
         
         total_costs = np.zeros(self.num_action)
         for i in range(self.horizon):
             next_states = self.model.predict(states[:,0:6],states[:,6:12],action)
-            next_state = np.concatenate([next_states[:,0:3],self.orientation,next_states[:,3:6],next_states[:,3:6]],1)
+            orientation = next_states[:,3:6]
+            #next_states = np.concatenate([next_states[:,0:3],self.orientation,next_states[:,3:6],next_states[:,3:6]],1)
             total_costs += self.cost_fn(next_states)*np.power(0.9,i)
-            action = np.concatenate([next_states[:,0:3] + norm_action_list * vel_coeff * self.unit_coeff,self.orientation],1)
-            states = next_state
+            action = np.concatenate([next_states[:,0:3] + norm_action_list * vel_coeff * self.unit_coeff,orientation + orientation_action_list],1)
+            states = next_states
              
         return first_actions[np.argmin(total_costs),:].flatten()
     
@@ -73,7 +75,7 @@ class MPC_Agent():
             #init_pose = [0.45334842, 0.79876678, 0.3499672,  0.0565217219, 1.54460172 , 1.50546055]
             #goal_pose = [-0.18659594,  0.36758037,  0.4112232 ,  0.0565217219, 1.54460172 , 1.50546055]
             print('reset the episode and generate random goal')
-            state = self.reset(init_pos= init_pose, goal_pos=goal_pose, istest=True)
+            state = self.reset(init_pos= init_pose, goal_pos=goal_pose, istest=False)
             print(state[:,0:6], self.goal)
             rospy.set_param('/real/mode', JOINT_CONTROL)
             desired_next_pose = self.get_optimal_action(state, vel_coeff)
@@ -85,7 +87,7 @@ class MPC_Agent():
                 
                 #dataset['desired_next_pos'].extend(np.expand_dims(desired_next_state,1).transpose())
                 #vel_coeff = (episode_length-j)/episode_length
-                next_state, dist_reward, m_index_reward = self.step(desired_next_pose)
+                next_state, dist_reward, orientation_reward, m_index_reward = self.step(desired_next_pose)
                 total_dist_reward += dist_reward
                 total_m_index_reward += m_index_reward
                 desired_next_pose = self.get_optimal_action(state, vel_coeff)
@@ -100,7 +102,7 @@ class MPC_Agent():
                 #dataset['reward'].extend(reward)
             #dataset['total_reward'].extend(total_reward)    
             #datasets.append(dataset)    
-            print(j*self.unit_coeff, total_m_index_reward/j) ## 1step당 이동거리 * step 수 , trajectory의 평균 m_index
+            print(j*self.unit_coeff, orientation_reward, total_m_index_reward/j) ## 1step당 이동거리 * step 수 , trajectory의 평균 m_index
             #self.update_models()
             
         #return datasets
@@ -112,22 +114,25 @@ class MPC_Agent():
     
     def cost_fn(self, pred_next_states):
         distance_cost = np.sqrt(np.sum((pred_next_states[:,0:3]-self.goal[0:3])**2,1))
+        orientation_cost = np.sqrt(np.sum((pred_next_states[:,3:6]-self.goal[3:6])**2,1))*0.5
         manipulability_cost = -self.m_model.predict(pred_next_states[:,0:6]).flatten()*np.mean(distance_cost)*1.5
-        scores = distance_cost + manipulability_cost
+        scores = distance_cost + orientation_cost#+ manipulability_cost
         return scores
     
     def reward_fn(self, state):
         
-        distance_cost = np.sqrt(np.sum((state[:,0:3]-self.goal[0:3])**2))
+        distance_cost = np.sqrt(np.sum((state[:,0:3]-self.goal[0:3])**2)) 
+        orientation_cost = np.sqrt(np.sum((state[:,3:6]-self.goal[3:6])**2,1))
         manipulability_cost = self.m_model.predict(state[:,0:6]).flatten()
-        print(distance_cost, manipulability_cost)
-        return distance_cost, manipulability_cost
+        print(distance_cost, orientation_cost, manipulability_cost)
+        return distance_cost, orientation_cost, manipulability_cost
     
     def reset(self, init_pos, goal_pos, istest):
 
         if not istest:
             target_traj, _, _, _ = self.gen_traj.generate_online_trajectory_and_go_to_init(index = 1)
-            self.goal = target_traj[:,-1]
+            goal = target_traj[:,-1]
+            self.goal = arrange_orientation_data(goal)
         else:
             self.gen_traj.generate_given_trajectory_and_go_to_init(index = 1, init_pos=init_pos)
             self.goal = goal_pos
@@ -149,12 +154,13 @@ class MPC_Agent():
         
         # get state and evaluate reward
         state = self.get_robot_state()
-        dist_reward,m_index_reward = self.reward_fn(state)
+        dist_reward,orientation_cost,m_index_reward = self.reward_fn(state)
         
-        return state, dist_reward, m_index_reward
+        return state, dist_reward, orientation_cost, m_index_reward
          
     def get_robot_state(self):
         pose = self.real_pose
+        pose = arrange_orientation_data(pose)
         vel = self.real_velocity
         return np.transpose(np.expand_dims(np.concatenate([pose,vel],0),1))
         
@@ -167,6 +173,30 @@ class MPC_Agent():
     def real_m_index_callback(self, data):
         self.real_m_index = data.data   
         
+
+def arrange_orientation_data(pose):
+    
+    pose = np.asarray(pose)
+    orientation_range = np.pi/3
+    if pose[3] > 0.0565217219 + orientation_range:
+        pose[3] = pose[3] - np.pi
+        
+    if pose[4] > 1.54460172 + orientation_range: # 0.3은 orientation range 보다 조금 더 큰 값 
+        pose[4] = pose[4] - np.pi
+    
+    if pose[5] > 1.50546055 +orientation_range:
+        pose[5] = pose[5] - np.pi
+        
+    if pose[3] < 0.0565217219 - orientation_range:
+        pose[3] = pose[3] + np.pi  
+            
+    if pose[4] < 1.54460172 - orientation_range: # 0.3은 orientation range 보다 조금 더 큰 값 
+        pose[4] = pose[4] + np.pi
+    
+    if pose[5] < 1.50546055 - orientation_range:
+        pose[5] = pose[5] + np.pi
+        
+    return (pose[0],pose[1],pose[2],pose[3],pose[4],pose[5]) 
         
  
 def split_and_arrange_dataset(datasets, ratio=0.8):
@@ -200,17 +230,27 @@ def main():
     load_dataset = True
     save = True
     mpc = True
-    deriv = False
+    deriv = True
     rospy.init_node("mpc_loop", anonymous=True)
 
     # define transition model neural network
-    if deriv:
-        model_name = '3dof_deriv'
-    else:
-        model_name = '3dof_naive'
-    layers = [9,100,100,100,6]
+    #if deriv:
+    #    model_name = '3dof_deriv'
+    #else:
+    #    model_name = '3dof_naive'
+    #layers = [9,100,100,100,6]
     
-    NN = NeuralNet_3dof(layers, activation = None, deriv=deriv)
+    if deriv:
+        model_name = 'deriv_ntraj50_params_ori02_xyz_08_05_in_055_03'
+    else:
+        model_name = 'naive_ntraj50_params_ori02_xyz_08_05_in_055_03'   
+     
+        
+    
+    
+    layers = [18,100,100,100,12]
+    
+    NN = NeuralNet(layers, activation = None, deriv=deriv)
     NN.build_graph()
     
     # define manipulability model neural network
@@ -233,7 +273,7 @@ def main():
         
          # collect initial dataset
         if load_dataset:
-            datasets = np.load('./dataset/datasets_damp_2500.npy', encoding='bytes')
+            datasets = np.load('./dataset/ntraj50_params_ori02_xyz_08_05_in_055_03.npy', encoding='bytes')
         #else:
             datasets = gen_traj.start_data_collection(episode_num = 10, index = 1)
         
@@ -249,7 +289,7 @@ def main():
         #m_train_loss, m_eval_loss = NN_Manip.train(epoch, train_data, eval_data, save, eval_interval)
         
     else:
-        datasets = np.load('./dataset/datasets_damp_2500.npy', encoding='bytes')
+        datasets = np.load('./dataset/ntraj50_params_ori02_xyz_08_05_in_055_03.npy', encoding='bytes')
         train_data, eval_data = split_and_arrange_dataset(datasets) # 저장된 train eval data 불러와야함. (cheating 가능성)
         
         NN.saver.restore(NN.sess,'./saved_model/'+model_name)
@@ -257,8 +297,8 @@ def main():
         
     # mpc loop
     if mpc:
-        num_action = 9*9*9 # all combinations of [-1,0,1] for 6dof
-        agent = MPC_Agent(model = NN, m_model = NN_Manip, gen_traj = gen_traj, time_horizon = 5, num_action = num_action)
+        num_action = 5*5*5*5*5*5#9*9*9 # all combinations of [-1,0,1] for 6dof
+        agent = MPC_Agent(model = NN, m_model = NN_Manip, gen_traj = gen_traj, time_horizon = 1, num_action = num_action)
         datasets = agent.run_policy(num_episode = 10, episode_length = 500, datasets = train_data)
     
     #filename = 'datasets_damp_2500.npy'

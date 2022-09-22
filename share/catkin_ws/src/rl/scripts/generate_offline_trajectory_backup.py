@@ -17,7 +17,7 @@ from geometry_msgs.msg import PoseStamped, Quaternion, Pose
 from std_msgs.msg import Float64MultiArray, Float64
 from tf.transformations import quaternion_from_euler
 from rl.srv import SolveIk 
-# 
+
 
 # mode
 INIT = 0
@@ -35,15 +35,13 @@ class GenerateOfflineTrajectory(object):
     def __init__(self, thread_rate, real = True, unity = True, get_cur=True, get_next=True, get_desired=True, get_reward=False):
       self.thread_rate = thread_rate
       self.rate = rospy.Rate(self.thread_rate) 
+      
       self.real = real
       self.unity = unity
       self.get_cur = get_cur
       self.get_next = get_next
       self.get_desired = get_desired
       self.get_reward = get_reward
-      
-      self.orientation_range = 0.2
-      
       self.unity_ik_result_pub = rospy.Publisher('/unity/ik_result', Float64MultiArray, queue_size=10)
       self.real_ik_result_pub = rospy.Publisher('/real/ik_result', Float64MultiArray, queue_size=10)
       
@@ -56,34 +54,9 @@ class GenerateOfflineTrajectory(object):
       self.real_pose_sub = rospy.Subscriber('/real/current_pose_rpy', Float64MultiArray, self.real_pose_callback)
       self.real_velocity_sub = rospy.Subscriber('/real/task_velocity', Float64MultiArray, self.real_velocity_callback)
       self.real_m_index_sub = rospy.Subscriber('/real/m_index', Float64, self.real_m_index_callback)
-    
-
-    def arrange_orientation_data(self, pose):
-        
-        pose = np.asarray(pose)
-        
-        if pose[3] > self.initial_pose[3] + self.orientation_range:
-            pose[3] = pose[3] - np.pi
-            
-        if pose[4] >self.initial_pose[4] + self.orientation_range: # 0.3은 orientation range 보다 조금 더 큰 값 
-            pose[4] = pose[4] - np.pi
-        
-        if pose[5] > self.initial_pose[5] +self.orientation_range:
-            pose[5] = pose[5] - np.pi
-            
-        if pose[3] < self.initial_pose[3] - self.orientation_range:
-            pose[3] = pose[3] + np.pi  
-              
-        if pose[4] < self.initial_pose[4] - self.orientation_range: # 0.3은 orientation range 보다 조금 더 큰 값 
-            pose[4] = pose[4] + np.pi
-        
-        if pose[5] < self.initial_pose[5] - self.orientation_range:
-            pose[5] = pose[5] + np.pi
-        
-        return (pose[0],pose[1],pose[2],pose[3],pose[4],pose[5]) 
         
     def unity_pose_callback(self, data):
-        self.unity_pose = data.data
+        self.unity_pose = data.data    
         
     def unity_velocity_callback(self, data):
         self.unity_velocity = data.data
@@ -91,8 +64,8 @@ class GenerateOfflineTrajectory(object):
     def unity_m_index_callback(self, data):
         self.unity_m_index = data.data    
          
-    def real_pose_callback(self, data):        
-        self.real_pose = data.data
+    def real_pose_callback(self, data):
+        self.real_pose = data.data      
               
     def real_velocity_callback(self, data):
         self.real_velocity = data.data
@@ -115,9 +88,7 @@ class GenerateOfflineTrajectory(object):
         return t,xt,vt,at
 
     def generate_cosine_trajectories(self):
-        
-        
-        orientation_range = 0.2
+        orientation_range = 0.0
         xyz_range = 0.80
         xyz_offset = 0.5
         
@@ -127,7 +98,7 @@ class GenerateOfflineTrajectory(object):
         r_offset = self.initial_pose[3]
         p_offset = self.initial_pose[4]
         y_offset = self.initial_pose[5]
-
+    
         if self.index==0: # x = 0~1 , y = -1~1, z=-1~1
             x0 = np.random.random(6) * 2*xyz_range - xyz_range
             xf = np.random.random(6) * 2*xyz_range - xyz_range
@@ -192,7 +163,7 @@ class GenerateOfflineTrajectory(object):
             xf[3] = np.random.random(1) *2*orientation_range - orientation_range +r_offset
             xf[4] = np.random.random(1) *2*orientation_range - orientation_range +p_offset
             xf[5] = np.random.random(1) *2*orientation_range - orientation_range +y_offset
-
+        
         duration = np.ones(6,dtype=int) * int(np.random.random(1)*3+5) # target trajectory는 5~7초 동안 이동함, total step = duration * thread_rate
         amp, bias, freq = self.generate_random_cosine_trajectory_parameter(x0,xf,duration)
         
@@ -202,8 +173,9 @@ class GenerateOfflineTrajectory(object):
         t,rxt,rxvt,rxat = self.generate_cosine_trajectory(amp[3], bias[3], freq[3], duration[3])
         t,ryt,ryvt,ryat = self.generate_cosine_trajectory(amp[4], bias[4], freq[4], duration[4])
         t,rzt,rzvt,rzat = self.generate_cosine_trajectory(amp[5], bias[5], freq[5], duration[5])
-        
+
         return np.vstack((xt,yt,zt,rxt,ryt,rzt)), np.vstack((xvt,yvt,zvt,rxvt,ryvt,rzvt)), np.vstack((xat,yat,zat,rxat,ryat,rzat)), len(t)
+
 
 
     def generate_init_random_cosine_trajectory_parameter(self,x0,xf,T):
@@ -212,19 +184,17 @@ class GenerateOfflineTrajectory(object):
         freq = np.pi/T
         return amp, bias, freq
 
-    def generate_init_cosine_trajectories(self, xf): # initial trajectory는 8초동안 이동함
+    def generate_init_cosine_trajectories(self,xf): # initial trajectory는 8초동안 이동함
         duration = np.ones(6,dtype=int) * 8
         if self.unity:
             x0 = self.unity_pose
         if self.real:
             x0 = self.real_pose
         
-        
-        x0 = self.arrange_orientation_data(x0)
-        
+        #x0 = self.arrange_orientation_data(x0)
+            
         amp, bias, freq = self.generate_init_random_cosine_trajectory_parameter(np.asarray(x0),np.asarray(xf),duration)
-        print(x0)
-        print(xf)
+
         t,xt,xvt,xat = self.generate_cosine_trajectory(amp[0], bias[0], freq[0], duration[0])
         t,yt,yvt,yat = self.generate_cosine_trajectory(amp[1], bias[1], freq[1], duration[1])
         t,zt,zvt,zat = self.generate_cosine_trajectory(amp[2], bias[2], freq[2], duration[2])
@@ -283,7 +253,8 @@ class GenerateOfflineTrajectory(object):
             return ik_result
         else: # IK가 실패하면 teleop 정지
             print("ik failed")
-            rospy.set_param(self.prefix+'/teleop_state', "stop")
+            #rospy.set_param('/real/teleop_state', "stop")
+            #rospy.set_param('/unity/teleop_state', "stop")
 
     def check_ik_solution(self, target_pose):
         result = self.ik_solver(target_pose)
@@ -360,13 +331,14 @@ class GenerateOfflineTrajectory(object):
 
         if self.get_reward:
             dataset['reward'] = dataset['reward'][:-1]
-        if self.real:
-            dataset['real_m_index'] = dataset['real_m_index'][:-1]
-        if self.unity:
-            dataset['unity_m_index'] = dataset['unity_m_index'][:-1]
+            
+        #if self.real:
+        #    dataset['real_m_index'] = dataset['real_m_index'][:-1]
+        #if self.unity:
+        #    dataset['unity_m_index'] = dataset['unity_m_index'][:-1]
 
         return dataset
-    
+
     def generate_given_trajectory_and_go_to_init(self, index, init_pos):
         self.index = index
         
@@ -486,7 +458,6 @@ class GenerateOfflineTrajectory(object):
             
         success_episode_count = 0
         while episode_num > success_episode_count:
-            print('episode number: '+str(success_episode_count))
             dataset = defaultdict(list)
             # generating target trajectory for 5~7 seconds
             target_traj, traj_vel, traj_acc, target_traj_length = self.generate_cosine_trajectories()
@@ -548,7 +519,7 @@ class GenerateOfflineTrajectory(object):
             print(target_traj_length/self.thread_rate)
             dataset = self.arrange_dataset(dataset)
             datasets.append(dataset)
-            time.sleep(1)
+
             if self.real:
                 rospy.set_param('/real/mode', IDLE) # set velocity to zero
             if self.unity:
@@ -556,7 +527,7 @@ class GenerateOfflineTrajectory(object):
 
             print('change velocity control mode (joint space) to idle mode, set velocity zero')
             success_episode_count += 1
-            
+            time.sleep(1)
             print('wait one second before generating new trajectory')
 
         return datasets
@@ -570,11 +541,10 @@ def main():
     rate = rospy.Rate(1)
     gen_traj = GenerateOfflineTrajectory(thread_rate = 40, real = True, unity = True)
     rate.sleep()
-    datasets = gen_traj.start_data_collection(episode_num = 5, index = 1)
+    datasets = gen_traj.start_data_collection(episode_num = 10, index = 1)
     path = '/root/share/catkin_ws/src/ur10_teleop_interface/scripts/'
-    filename = 'ntraj50_params_ori02_xyz_08_05_in_055_03.npy'
+    filename = 'datasets_damp_2500.npy'
     np.save(path+filename,datasets)
-    
     
     rospy.set_param('/unity/mode', INIT)
     rospy.set_param('/real/mode', INIT)
