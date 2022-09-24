@@ -105,8 +105,14 @@ class MPC_Agent():
                 self.prev_pose = state
                 state = next_state
                 if dist_reward < self.unit_coeff:
-                    self.action_list = np.concatenate([np.zeros((5*5*5,3)), np.asarray(list(product([-1,-0.5,0,0.5,1],repeat=3)))],1)
+                    self.action_list = np.concatenate([np.zeros((9*9*9,3)), np.asarray(list(product([-1,-0.75,-0.5,-0.25,0,0.25,0.5,0.75,1],repeat=3)))],1)
                     if orientation_reward < 0.1: ## minimum moving resolution < sqrt(x_resolution^2 + y_resolution^2 + z_resolution^2)
+                        print('arrived at the goal')
+                        break
+                    
+                if orientation_reward < 0.1:
+                    self.action_list = np.concatenate([np.asarray(list(product([-1,-0.75,-0.5,-0.25,0,0.25,0.5,0.75,1],repeat=3))),np.zeros((9*9*9,3))],1)
+                    if  dist_reward < self.unit_coeff:## minimum moving resolution < sqrt(x_resolution^2 + y_resolution^2 + z_resolution^2)
                         print('arrived at the goal')
                         break
                 #print(dist_reward,m_index_reward)
@@ -189,47 +195,27 @@ class MPC_Agent():
         
 
     def arrange_orientation_data(self, pose):
-        
+       
         pose = np.asarray(pose)
-        orientation_range = 0.25
-        if pose[3] > 0.0565217219 + orientation_range:
+        orientation_range = 0.5
+        if pose[3] >  -0.019840669143976232 + orientation_range:
             pose[3] = pose[3] - np.pi
             
-        if pose[4] > 1.54460172 + orientation_range: # 0.3은 orientation range 보다 조금 더 큰 값 
+        if pose[4] >  0.8654425109456884 + orientation_range: # 0.3은 orientation range 보다 조금 더 큰 값 
             pose[4] = pose[4] - np.pi
         
-        if pose[5] > 1.50546055 +orientation_range:
+        if pose[5] > 1.63721386022732566 +orientation_range:
             pose[5] = pose[5] - np.pi
             
-        if pose[3] < 0.0565217219 - orientation_range:
+        if pose[3] <  -0.019840669143976232 - orientation_range:
             pose[3] = pose[3] + np.pi  
                 
-        if pose[4] < 1.54460172 - orientation_range: # 0.3은 orientation range 보다 조금 더 큰 값 
+        if pose[4] <  0.8654425109456884 - orientation_range: # 0.3은 orientation range 보다 조금 더 큰 값 
             pose[4] = pose[4] + np.pi
         
-        if pose[5] < 1.50546055 - orientation_range:
+        if pose[5] < 1.63721386022732566 - orientation_range:
             pose[5] = pose[5] + np.pi
 
-
-        # for transitioning            
-        if pose[3] - 0.0565217219 > orientation_range:
-            pose[3] = self.prev_pose[0][3]-0.01
-            
-        if pose[4] - 1.54460172 > orientation_range:
-            pose[4] = self.prev_pose[0][4]-0.01
-            
-        if pose[5] - 1.50546055 > orientation_range:
-            pose[5] = self.prev_pose[0][5]-0.01
-
-        if pose[3] - 0.0565217219 < -orientation_range:
-            pose[3] = self.prev_pose[0][3]+0.01
-            
-        if pose[4] - 1.54460172 < -orientation_range:
-            pose[4] = self.prev_pose[0][4]+0.01
-            
-        if pose[5] - 1.50546055 < -orientation_range:
-            pose[5] = self.prev_pose[0][5]+0.01
-            
         
         return (pose[0],pose[1],pose[2],pose[3],pose[4],pose[5]) 
             
@@ -276,9 +262,9 @@ def main():
     #layers = [9,100,100,100,6]
     
     if deriv:
-        model_name = 'deriv_ntraj50_params_ori02_xyz_08_05_in_055_03'
+        model_name = 'deriv_ntraj50_params_ori02_xyz_08_05_in_055_03_trial2.npy_2'
     else:
-        model_name = 'naive_ntraj50_params_ori02_xyz_08_05_in_055_03'   
+        model_name = 'naive_ntraj50_params_ori02_xyz_08_05_in_055_03_trial2.npy_2'   
      
         
     
@@ -308,8 +294,8 @@ def main():
         
          # collect initial dataset
         if load_dataset:
-            datasets = np.load('./dataset/ntraj50_params_ori02_xyz_08_05_in_055_03.npy', encoding='bytes')
-        #else:
+            datasets = np.load('./dataset/ntraj50_params_ori02_xyz_08_05_in_055_03_trial2.npy_2.npy', encoding='bytes')
+        else:
             datasets = gen_traj.start_data_collection(episode_num = 10, index = 1)
         
         train_data, eval_data = split_and_arrange_dataset(datasets,ratio=0.95)
@@ -321,10 +307,10 @@ def main():
         
         epoch = 3000
         eval_interval = 100
-        #m_train_loss, m_eval_loss = NN_Manip.train(epoch, train_data, eval_data, save, eval_interval)
+        m_train_loss, m_eval_loss = NN_Manip.train(epoch, train_data, eval_data, save, eval_interval)
         
     else:
-        datasets = np.load('./dataset/ntraj50_params_ori02_xyz_08_05_in_055_03.npy', encoding='bytes')
+        datasets = np.load('./dataset/ntraj50_params_ori02_xyz_08_05_in_055_03_trial2.npy_2.npy', encoding='bytes')
         train_data, eval_data = split_and_arrange_dataset(datasets) # 저장된 train eval data 불러와야함. (cheating 가능성)
         
         NN.saver.restore(NN.sess,'./saved_model/'+model_name)

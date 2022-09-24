@@ -1,2 +1,2 @@
-model_checkpoint_path: "6dof_naive"
-all_model_checkpoint_paths: "6dof_naive"
+model_checkpoint_path: "naive_ntraj50_params_ori02_xyz_08_05_in_055_03_trial2.npy_2"
+all_model_checkpoint_paths: "naive_ntraj50_params_ori02_xyz_08_05_in_055_03_trial2.npy_2"
