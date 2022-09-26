@@ -8,12 +8,157 @@ from collections import defaultdict
 import matplotlib.pyplot as plt
 from mpl_toolkits import mplot3d
 
+# try1
+# horizon1 0.229 -> 0.230 --> 0.234
+# horizon3 0.225 -> 0.227 --> 0.230
+# horizon5 0.219 -> 0.224 --> 0.234
+# horizon7 0.214 -> 0.222 --> 0.224
+
+# try2
+# horizon1 0.112 -> 0.118 --> 0.125
+# horizon3 0.111 -> 0.117 --> 0.123
+# horizon5 0.109 -> 0.116 --> 0.125
+# horizon7 0.107 -> 0.114 --> 0.123
+
+# try3
+# horizon1 0.158 -> 0.179 --> 0.226
+# horizon3 0.163 -> 0.187 --> 0.235
+# horizon5 0.164 -> 0.194 --> 0.226
+# horizon7 0.167 -> 0.200 --> 0.241
 
 
 def main():
-    path = '/root/share/catkin_ws/src/ur10_teleop_interface/scripts/'
-    filename = 'ntraj50_params_ori02_xyz_08_05_in_055_03.npy'
-    datasets = np.load('./dataset/ntraj50_params_ori02_xyz_08_05_in_055_03.npy', encoding='bytes')
+    
+    datasets = np.load('./result/deriv_orient_try3_manip00_horizon1.npy', encoding='bytes')
+    mean = []
+    for i in range(5):
+        real_m_index = np.asarray(datasets[i]['real_m_index'])
+        mean.append(np.mean(real_m_index))
+    print(np.mean(np.asarray(mean)))
+        
+    datasets = np.load('./result/deriv_orient_try3_manip05_horizon1.npy', encoding='bytes')
+    mean = []
+    for i in range(5):
+        real_m_index = np.asarray(datasets[i]['real_m_index'])
+        mean.append(np.mean(real_m_index))
+    print(np.mean(np.asarray(mean)))
+        
+    datasets = np.load('./result/deriv_orient_try3_manip10_horizon1.npy', encoding='bytes')
+    mean = []
+    for i in range(5):
+        real_m_index = np.asarray(datasets[i]['real_m_index'])
+        mean.append(np.mean(real_m_index))
+    print(np.mean(np.asarray(mean)))
+        
+    datasets = np.load('./result/deriv_orient_try3_manip00_horizon3.npy', encoding='bytes')
+    mean = []
+    for i in range(5):
+        real_m_index = np.asarray(datasets[i]['real_m_index'])
+        mean.append(np.mean(real_m_index))
+    print(np.mean(np.asarray(mean)))
+        
+    datasets = np.load('./result/deriv_orient_try3_manip05_horizon3.npy', encoding='bytes')
+    mean = []
+    for i in range(5):
+        real_m_index = np.asarray(datasets[i]['real_m_index'])
+        mean.append(np.mean(real_m_index))
+    print(np.mean(np.asarray(mean)))
+        
+    datasets = np.load('./result/deriv_orient_try3_manip10_horizon3.npy', encoding='bytes')
+    mean = []
+    for i in range(5):
+        real_m_index = np.asarray(datasets[i]['real_m_index'])
+        mean.append(np.mean(real_m_index))
+    print(np.mean(np.asarray(mean)))
+        
+    datasets = np.load('./result/deriv_orient_try3_manip00_horizon5.npy', encoding='bytes')
+    mean = []
+    for i in range(5):
+        real_m_index = np.asarray(datasets[i]['real_m_index'])
+        mean.append(np.mean(real_m_index))
+    print(np.mean(np.asarray(mean)))
+        
+    datasets = np.load('./result/deriv_orient_try3_manip05_horizon5.npy', encoding='bytes')
+    mean = []
+    for i in range(5):
+        real_m_index = np.asarray(datasets[i]['real_m_index'])
+        mean.append(np.mean(real_m_index))
+    print(np.mean(np.asarray(mean)))  
+        
+    datasets = np.load('./result/deriv_orient_try3_manip10_horizon1.npy', encoding='bytes')
+    mean = []
+    for i in range(5):
+        real_m_index = np.asarray(datasets[i]['real_m_index'])
+        mean.append(np.mean(real_m_index))
+    print(np.mean(np.asarray(mean)))
+    
+    
+    datasets = np.load('./result/deriv_orient_try3_manip00_horizon7.npy', encoding='bytes')
+    mean = []
+    for i in range(5):
+        real_m_index = np.asarray(datasets[i]['real_m_index'])
+        mean.append(np.mean(real_m_index))
+    print(np.mean(np.asarray(mean)))
+        
+    datasets = np.load('./result/deriv_orient_try3_manip05_horizon7.npy', encoding='bytes')
+    mean = []
+    for i in range(5):
+        real_m_index = np.asarray(datasets[i]['real_m_index'])
+        mean.append(np.mean(real_m_index))
+    print(np.mean(np.asarray(mean)))  
+        
+    datasets = np.load('./result/deriv_orient_try3_manip10_horizon7.npy', encoding='bytes')
+    mean = []
+    for i in range(5):
+        real_m_index = np.asarray(datasets[i]['real_m_index'])
+        mean.append(np.mean(real_m_index))
+    print(np.mean(np.asarray(mean)))
+        
+    '''
+    fig = plt.figure(figsize=(30,20))
+    
+    ax1 = fig.add_subplot(2,1,1, projection='3d')
+    ax1.title.set_text('trajectory 1~50')
+    ax1.set_xlabel('x')
+    ax1.set_ylabel('y')
+    ax1.set_zlabel('z')
+    
+    ax1.set_xlim([-0.8,0.8])
+    ax1.set_ylim([0.3,0.85])
+    ax1.set_zlim([0.3,0.85])
+
+
+    name2 = 'real_cur_pos'
+    
+    ax1.plot(np.asarray(datasets[0][name2])[:,0], np.asarray(datasets[0][name2])[:,1], np.asarray(datasets[0][name2])[:,2],lw=2, color='royalblue', label = 'real') 
+    ax1.plot(np.asarray(datasets[1][name2])[:,0], np.asarray(datasets[1][name2])[:,1], np.asarray(datasets[1][name2])[:,2],lw=2, color='royalblue', label = 'real') 
+    ax1.plot(np.asarray(datasets[2][name2])[:,0], np.asarray(datasets[2][name2])[:,1], np.asarray(datasets[2][name2])[:,2],lw=2, color='royalblue', label = 'real') 
+    ax1.plot(np.asarray(datasets[3][name2])[:,0], np.asarray(datasets[3][name2])[:,1], np.asarray(datasets[3][name2])[:,2],lw=2, color='royalblue', label = 'real') 
+    ax1.plot(np.asarray(datasets[4][name2])[:,0], np.asarray(datasets[4][name2])[:,1], np.asarray(datasets[4][name2])[:,2],lw=2, color='royalblue', label = 'real') 
+    
+    
+    ax2 = fig.add_subplot(2,1,2, projection='3d')
+    ax2.title.set_text('trajectory 1~50')
+    ax2.set_xlabel('roll')
+    ax2.set_ylabel('pitch')
+    ax2.set_zlabel('yaw')
+    
+    #ax2.set_xlim([-0.8,0.8])
+    #ax2.set_ylim([0.3,0.85])
+    #ax2.set_zlim([0.3,0.85])
+    
+    ax2.plot(np.asarray(datasets[0][name2])[:,3], np.asarray(datasets[0][name2])[:,4], np.asarray(datasets[0][name2])[:,5],lw=2, color='royalblue', label = 'real') 
+    ax2.plot(np.asarray(datasets[1][name2])[:,3], np.asarray(datasets[1][name2])[:,4], np.asarray(datasets[1][name2])[:,5],lw=2, color='royalblue', label = 'real') 
+    ax2.plot(np.asarray(datasets[2][name2])[:,3], np.asarray(datasets[2][name2])[:,4], np.asarray(datasets[2][name2])[:,5],lw=2, color='royalblue', label = 'real') 
+    ax2.plot(np.asarray(datasets[3][name2])[:,3], np.asarray(datasets[3][name2])[:,4], np.asarray(datasets[3][name2])[:,5],lw=2, color='royalblue', label = 'real') 
+    ax2.plot(np.asarray(datasets[4][name2])[:,3], np.asarray(datasets[4][name2])[:,4], np.asarray(datasets[4][name2])[:,5],lw=2, color='royalblue', label = 'real') 
+    plt.show()
+    '''
+    
+    #path = '/root/share/catkin_ws/src/ur10_teleop_interface/scripts/'
+    #filename = 'ntraj50_params_ori02_xyz_08_05_in_055_03.npy'
+    #datasets = np.load('./dataset/ntraj50_params_ori02_xyz_08_05_in_055_03.npy', encoding='bytes')
+    
     '''
     ratio = 0.8
     dataset_size = datasets.shape[0]
@@ -37,7 +182,7 @@ def main():
     plt.hist(m_index)
     plt.show()
     '''
-    
+    '''
     fig = plt.figure(figsize=(30,20))
     
     ax1 = fig.add_subplot(3,2,1, projection='3d')
@@ -139,7 +284,7 @@ def main():
     plt.show()
     fig.savefig('./trajectory comparison.png')
     fig.savefig('./trajectory.pdf',dpi=600)
-
+    '''
 if __name__ == '__main__':
     main()
     

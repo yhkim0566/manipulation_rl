@@ -24,9 +24,8 @@ IDLE = 6
 
 class MPC_Agent():
     
-    def __init__(self, model, m_model, gen_traj, time_horizon, num_action, thread_rate=40):
-        self.horizon = time_horizon
-        self.num_action = num_action
+    def __init__(self, model, m_model, gen_traj, thread_rate):
+        
         self.gen_traj = gen_traj
         self.unit_coeff = 0.05
         self.model = model
@@ -64,39 +63,28 @@ class MPC_Agent():
              
         return first_actions[np.argmin(total_costs),:].flatten()
     
-    def run_policy(self, num_episode, episode_length, datasets):
+    def run_policy(self, num_episode, episode_length, time_horizon, init_pose, goal_pose, manip_coeff, istest):
+        self.horizon = time_horizon
+        self.manip_coeff = manip_coeff
+        datasets = []
         for i in range(num_episode):
             total_dist_reward = 0.0
             total_m_index_reward = 0.0
             vel_coeff = 1.0
-            #init_pose = [0.2247873502,  0.677983984,  0.529824672,  0.0565217219, 1.54460172 , 1.50546055]
-            #goal_pose = [0.59169136, 0.45289882, 0.84063907,  0.0565217219, 1.54460172 , 1.50546055]
-            
-            #orientation1
-            #init_pose = [ 0.37561136,  0.53926309,  0.31510007, -0.06826295,  1.49550261,  1.38776601]
-            #goal_pose = [0.5707816371741428, 0.729938074079836, 0.699689768303323, 0.10480962431726137, 1.5948820513304531, 1.410366382502772]
-            
-            
-            #orientation2
-            init_pose = [0.30613005, 0.80924435, 0.54419401, 0.04087591, 1.4184055, 1.51275012]
-            goal_pose = [-0.37863849083914725, 0.5847729319475161, 0.6181325218578473, 0.18783086971417767, 1.5114953916525464, 1.2863334733003216]
 
-            #init_pose = [0.45334842, 0.79876678, 0.3499672,  0.0565217219, 1.54460172 , 1.50546055]
-            #goal_pose = [-0.18659594,  0.36758037,  0.4112232 ,  0.0565217219, 1.54460172 , 1.50546055]
             print('reset the episode and generate random goal')
-            state = self.reset(init_pos= init_pose, goal_pos=goal_pose, istest=False)
+            state = self.reset(init_pos= init_pose, goal_pos=goal_pose, istest=istest)
             print(state[:,0:6], self.goal)
             rospy.set_param('/real/mode', JOINT_CONTROL)
             self.action_list = np.asarray(list(product([-1,-0.5,0,0.5,1],repeat=6)))
             desired_next_pose = self.get_optimal_action(state, vel_coeff)
-
+            dataset = defaultdict(list) 
             for j in range(episode_length):
-                #dataset = defaultdict(list) 
-                #dataset['real_cur_pos'].extend(np.expand_dims(state[0:6],1).transpose())
-                #dataset['real_cur_vel'].extend(np.expand_dims(state[6:12],1).transpose())
-                #dataset['real_m_index'].extend(self.real_m_index)
                 
-                #dataset['desired_next_pos'].extend(np.expand_dims(desired_next_state,1).transpose())
+                dataset['real_cur_pos'].append(state[0:6].flatten())
+                dataset['real_cur_vel'].append(state[6:12].flatten())
+                dataset['real_m_index'].append(self.real_m_index)
+                
                 #vel_coeff = (episode_length-j)/episode_length
                 next_state, dist_reward, orientation_reward, m_index_reward = self.step(desired_next_pose)
                 total_dist_reward += dist_reward
@@ -104,7 +92,7 @@ class MPC_Agent():
                 desired_next_pose = self.get_optimal_action(state, vel_coeff)
                 self.prev_pose = state
                 state = next_state
-                if dist_reward < self.unit_coeff:
+                if dist_reward < self.unit_coeff*2:
                     self.action_list = np.concatenate([np.zeros((9*9*9,3)), np.asarray(list(product([-1,-0.75,-0.5,-0.25,0,0.25,0.5,0.75,1],repeat=3)))],1)
                     if orientation_reward < 0.1: ## minimum moving resolution < sqrt(x_resolution^2 + y_resolution^2 + z_resolution^2)
                         print('arrived at the goal')
@@ -119,24 +107,26 @@ class MPC_Agent():
                 #dataset['real_next_pos'].extend(np.expand_dims(state[0:6],1).transpose())
                 #dataset['real_next_vel'].extend(np.expand_dims(state[6:12],1).transpose())
                 
-                #dataset['reward'].extend(reward)
-            #dataset['total_reward'].extend(total_reward)    
-            #datasets.append(dataset)    
+                dataset['dist_reward'].append(dist_reward)
+                dataset['orientation_reward'].append(orientation_reward)
+                dataset['pred_m_index'].append(m_index_reward.flatten())
+            
+            datasets.append(dataset)    
             print(j*self.unit_coeff, orientation_reward, total_m_index_reward/j) ## 1step당 이동거리 * step 수 , trajectory의 평균 m_index
             #self.update_models()
             
-        #return datasets
+        return datasets
     
-    def update_models(self):
-        self.model.train(100, train_data, eval_data, exp_name, save=True, eval_interval=10)
-        self.m_model.train(100, train_data, eval_data, exp_name, save=True, eval_interval=10)
+    #def update_models(self):
+    #    self.model.train(100, train_data, eval_data, exp_name, save=True, eval_interval=10)
+    #    self.m_model.train(100, train_data, eval_data, exp_name, save=True, eval_interval=10)
         
     
     def cost_fn(self, pred_next_states):
         distance_cost = np.sqrt(np.sum((pred_next_states[:,0:3]-self.goal[0:3])**2,1))
         orientation_cost = np.sqrt(np.sum((pred_next_states[:,3:6]-self.goal[3:6])**2,1))*0.5
-        manipulability_cost = -self.m_model.predict(pred_next_states[:,0:6]).flatten()*np.mean(distance_cost)*1.0
-        scores = distance_cost + orientation_cost#+ manipulability_cost
+        manipulability_cost = -self.m_model.predict(pred_next_states[:,0:6]).flatten()*np.mean(distance_cost)*self.manip_coeff
+        scores = distance_cost + orientation_cost+ manipulability_cost
         return scores
     
     def reward_fn(self, state):
@@ -317,12 +307,250 @@ def main():
         NN_Manip.saver.restore(NN_Manip.sess,'./saved_model/m_index')    
         
     # mpc loop
+    istest=True
     if mpc:
-        num_action = 5*5*5*5*5*5#9*9*9 # all combinations of [-1,0,1] for 6dof
-        agent = MPC_Agent(model = NN, m_model = NN_Manip, gen_traj = gen_traj, time_horizon = 5, num_action = num_action)
-        datasets = agent.run_policy(num_episode = 10, episode_length = 500, datasets = train_data)
+        #try1
+        #init_pose = [0.30613005, 0.80924435, 0.54419401, 0.04087591, 1.4184055, 1.51275012]
+        #goal_pose = [-0.37863849083914725, 0.5847729319475161, 0.6181325218578473, 0.18783086971417767, 1.5114953916525464, 1.2863334733003216]
+        
+        
+        #try2
+        #init_pose = [-0.62214387,  0.45628403,  0.33778029,  0.09020013,  1.01727371,  1.58841589]
+        #goal_pose = [-0.2423847201614614, 0.36666238847899657, 0.7523733116634912, -0.01929954166940509, 0.7373673127157423, 1.708590343970926]
+
+        #try3
+        #init_pose = [-0.6599908,   0.42967212,  0.44839616,  0.08756153,  0.63682255,  1.63248467]
+        #goal_pose = [0.7837295521702641, 0.7928310902786284, 0.6695677180524834, -0.18023488991868655, 0.6935203516560906, 1.5474963351914952]
+
+
+
+
+        agent = MPC_Agent(model = NN, m_model = NN_Manip, gen_traj = gen_traj, thread_rate = 40)
+        '''
+        print('1')
+        manip_coeff = 0.0
+        datasets = agent.run_policy(num_episode = 5, episode_length = 500, time_horizon = 1, init_pose=init_pose, goal_pose = goal_pose, manip_coeff = manip_coeff,istest=istest)
+        filename = 'deriv_orient_try3_manip00_horizon1.npy'
+        np.save('./result/'+filename,datasets)
+        
+        print('2')
+        manip_coeff = 0.5
+        datasets = agent.run_policy(num_episode = 5, episode_length = 500, time_horizon = 1, init_pose=init_pose, goal_pose = goal_pose, manip_coeff = manip_coeff,istest=istest)
+        filename = 'deriv_orient_try3_manip05_horizon1.npy'
+        np.save('./result/'+filename,datasets)
+        
+        print('3')
+        manip_coeff = 1.0
+        datasets = agent.run_policy(num_episode = 5, episode_length = 500, time_horizon = 1, init_pose=init_pose, goal_pose = goal_pose, manip_coeff = manip_coeff,istest=istest)
+        filename = 'deriv_orient_try3_manip10_horizon1.npy'
+        np.save('./result/'+filename,datasets)
+        
+        print('4')
+        manip_coeff = 0.0
+        datasets = agent.run_policy(num_episode = 5, episode_length = 500, time_horizon = 3, init_pose=init_pose, goal_pose = goal_pose, manip_coeff = manip_coeff,istest=istest)
+        filename = 'deriv_orient_try3_manip00_horizon3.npy'
+        np.save('./result/'+filename,datasets)
+        
+        print('5')
+        manip_coeff = 0.5
+        datasets = agent.run_policy(num_episode = 5, episode_length = 500, time_horizon = 3, init_pose=init_pose, goal_pose = goal_pose, manip_coeff = manip_coeff,istest=istest)
+        filename = 'deriv_orient_try3_manip05_horizon3.npy'
+        np.save('./result/'+filename,datasets)
+        
+        print('6')
+        manip_coeff = 1.0
+        datasets = agent.run_policy(num_episode = 5, episode_length = 500, time_horizon = 3, init_pose=init_pose, goal_pose = goal_pose, manip_coeff = manip_coeff,istest=istest)
+        filename = 'deriv_orient_try3_manip10_horizon3.npy'
+        np.save('./result/'+filename,datasets)
+        
+        print('7')
+        manip_coeff = 0.0
+        datasets = agent.run_policy(num_episode = 5, episode_length = 500, time_horizon = 5, init_pose=init_pose, goal_pose = goal_pose, manip_coeff = manip_coeff,istest=istest)
+        filename = 'deriv_orient_try3_manip00_horizon5.npy'
+        np.save('./result/'+filename,datasets)
+        
+        print('8')
+        manip_coeff = 0.5
+        datasets = agent.run_policy(num_episode = 5, episode_length = 500, time_horizon = 5, init_pose=init_pose, goal_pose = goal_pose, manip_coeff = manip_coeff,istest=istest)
+        filename = 'deriv_orient_try3_manip05_horizon5.npy'
+        np.save('./result/'+filename,datasets)
+        
+        print('9')
+        manip_coeff = 1.0
+        datasets = agent.run_policy(num_episode = 5, episode_length = 500, time_horizon = 5, init_pose=init_pose, goal_pose = goal_pose, manip_coeff = manip_coeff,istest=istest)
+        filename = 'deriv_orient_try3_manip10_horizon5.npy'
+        np.save('./result/'+filename,datasets)
+        
+        print('10')
+        manip_coeff = 0.0
+        datasets = agent.run_policy(num_episode = 5, episode_length = 500, time_horizon = 7, init_pose=init_pose, goal_pose = goal_pose, manip_coeff = manip_coeff,istest=istest)
+        filename = 'deriv_orient_try3_manip00_horizon7.npy'
+        np.save('./result/'+filename,datasets)
+        
+        print('11')
+        manip_coeff = 0.5
+        datasets = agent.run_policy(num_episode = 5, episode_length = 500, time_horizon = 7, init_pose=init_pose, goal_pose = goal_pose, manip_coeff = manip_coeff,istest=istest)
+        filename = 'deriv_orient_try3_manip05_horizon7.npy'
+        np.save('./result/'+filename,datasets)
+        
+        print('12')
+        manip_coeff = 1.0
+        datasets = agent.run_policy(num_episode = 5, episode_length = 500, time_horizon = 7, init_pose=init_pose, goal_pose = goal_pose, manip_coeff = manip_coeff,istest=istest)
+        filename = 'deriv_orient_try3_manip10_horizon7.npy'
+        np.save('./result/'+filename,datasets)
+        '''
+        #try4
+        init_pose = [ 0.17817765,  0.39522357,  0.3761077,  -0.30800421,  0.85197747,  1.56139825]
+        goal_pose = [0.4476672477046888, 0.5850137468948966, 0.738266858185884, -0.09463220035563447, 0.8884850697937299, 1.4480424256801538]
+        
+        print('1')
+        manip_coeff = 0.0
+        datasets = agent.run_policy(num_episode = 5, episode_length = 500, time_horizon = 1, init_pose=init_pose, goal_pose = goal_pose, manip_coeff = manip_coeff,istest=istest)
+        filename = 'deriv_orient_try4_manip00_horizon1.npy'
+        np.save('./result/'+filename,datasets)
+        
+        print('2')
+        manip_coeff = 0.5
+        datasets = agent.run_policy(num_episode = 5, episode_length = 500, time_horizon = 1, init_pose=init_pose, goal_pose = goal_pose, manip_coeff = manip_coeff,istest=istest)
+        filename = 'deriv_orient_try4_manip05_horizon1.npy'
+        np.save('./result/'+filename,datasets)
+        
+        print('3')
+        manip_coeff = 1.0
+        datasets = agent.run_policy(num_episode = 5, episode_length = 500, time_horizon = 1, init_pose=init_pose, goal_pose = goal_pose, manip_coeff = manip_coeff,istest=istest)
+        filename = 'deriv_orient_try4_manip10_horizon1.npy'
+        np.save('./result/'+filename,datasets)
+        
+        print('4')
+        manip_coeff = 0.0
+        datasets = agent.run_policy(num_episode = 5, episode_length = 500, time_horizon = 3, init_pose=init_pose, goal_pose = goal_pose, manip_coeff = manip_coeff,istest=istest)
+        filename = 'deriv_orient_try4_manip00_horizon3.npy'
+        np.save('./result/'+filename,datasets)
+        
+        print('5')
+        manip_coeff = 0.5
+        datasets = agent.run_policy(num_episode = 5, episode_length = 500, time_horizon = 3, init_pose=init_pose, goal_pose = goal_pose, manip_coeff = manip_coeff,istest=istest)
+        filename = 'deriv_orient_try4_manip05_horizon3.npy'
+        np.save('./result/'+filename,datasets)
+        
+        print('6')
+        manip_coeff = 1.0
+        datasets = agent.run_policy(num_episode = 5, episode_length = 500, time_horizon = 3, init_pose=init_pose, goal_pose = goal_pose, manip_coeff = manip_coeff,istest=istest)
+        filename = 'deriv_orient_try4_manip10_horizon3.npy'
+        np.save('./result/'+filename,datasets)
+        
+        print('7')
+        manip_coeff = 0.0
+        datasets = agent.run_policy(num_episode = 5, episode_length = 500, time_horizon = 5, init_pose=init_pose, goal_pose = goal_pose, manip_coeff = manip_coeff,istest=istest)
+        filename = 'deriv_orient_try4_manip00_horizon5.npy'
+        np.save('./result/'+filename,datasets)
+        
+        print('8')
+        manip_coeff = 0.5
+        datasets = agent.run_policy(num_episode = 5, episode_length = 500, time_horizon = 5, init_pose=init_pose, goal_pose = goal_pose, manip_coeff = manip_coeff,istest=istest)
+        filename = 'deriv_orient_try4_manip05_horizon5.npy'
+        np.save('./result/'+filename,datasets)
+        
+        print('9')
+        manip_coeff = 1.0
+        datasets = agent.run_policy(num_episode = 5, episode_length = 500, time_horizon = 5, init_pose=init_pose, goal_pose = goal_pose, manip_coeff = manip_coeff,istest=istest)
+        filename = 'deriv_orient_try4_manip10_horizon5.npy'
+        np.save('./result/'+filename,datasets)
+        
+        print('10')
+        manip_coeff = 0.0
+        datasets = agent.run_policy(num_episode = 5, episode_length = 500, time_horizon = 7, init_pose=init_pose, goal_pose = goal_pose, manip_coeff = manip_coeff,istest=istest)
+        filename = 'deriv_orient_try4_manip00_horizon7.npy'
+        np.save('./result/'+filename,datasets)
+        
+        print('11')
+        manip_coeff = 0.5
+        datasets = agent.run_policy(num_episode = 5, episode_length = 500, time_horizon = 7, init_pose=init_pose, goal_pose = goal_pose, manip_coeff = manip_coeff,istest=istest)
+        filename = 'deriv_orient_try4_manip05_horizon7.npy'
+        np.save('./result/'+filename,datasets)
+        
+        print('12')
+        manip_coeff = 1.0
+        datasets = agent.run_policy(num_episode = 5, episode_length = 500, time_horizon = 7, init_pose=init_pose, goal_pose = goal_pose, manip_coeff = manip_coeff,istest=istest)
+        filename = 'deriv_orient_try4_manip10_horizon7.npy'
+        np.save('./result/'+filename,datasets)
+        
+        #try5
+        init_pose = [-0.31735397,  0.59395132,  0.30047592, -0.31696057,  0.91241833,  1.43027166]
+        goal_pose = [-0.5106587048041216, 0.419292690922957, 0.8189151099771221, -0.31766847312907986, 1.0880740411752865, 1.613780680747806]
+
+        print('1')
+        manip_coeff = 0.0
+        datasets = agent.run_policy(num_episode = 5, episode_length = 500, time_horizon = 1, init_pose=init_pose, goal_pose = goal_pose, manip_coeff = manip_coeff,istest=istest)
+        filename = 'deriv_orient_try5_manip00_horizon1.npy'
+        np.save('./result/'+filename,datasets)
+        
+        print('2')
+        manip_coeff = 0.5
+        datasets = agent.run_policy(num_episode = 5, episode_length = 500, time_horizon = 1, init_pose=init_pose, goal_pose = goal_pose, manip_coeff = manip_coeff,istest=istest)
+        filename = 'deriv_orient_try5_manip05_horizon1.npy'
+        np.save('./result/'+filename,datasets)
+        
+        print('3')
+        manip_coeff = 1.0
+        datasets = agent.run_policy(num_episode = 5, episode_length = 500, time_horizon = 1, init_pose=init_pose, goal_pose = goal_pose, manip_coeff = manip_coeff,istest=istest)
+        filename = 'deriv_orient_try5_manip10_horizon1.npy'
+        np.save('./result/'+filename,datasets)
+        
+        print('4')
+        manip_coeff = 0.0
+        datasets = agent.run_policy(num_episode = 5, episode_length = 500, time_horizon = 3, init_pose=init_pose, goal_pose = goal_pose, manip_coeff = manip_coeff,istest=istest)
+        filename = 'deriv_orient_try5_manip00_horizon3.npy'
+        np.save('./result/'+filename,datasets)
+        
+        print('5')
+        manip_coeff = 0.5
+        datasets = agent.run_policy(num_episode = 5, episode_length = 500, time_horizon = 3, init_pose=init_pose, goal_pose = goal_pose, manip_coeff = manip_coeff,istest=istest)
+        filename = 'deriv_orient_try5_manip05_horizon3.npy'
+        np.save('./result/'+filename,datasets)
+        
+        print('6')
+        manip_coeff = 1.0
+        datasets = agent.run_policy(num_episode = 5, episode_length = 500, time_horizon = 3, init_pose=init_pose, goal_pose = goal_pose, manip_coeff = manip_coeff,istest=istest)
+        filename = 'deriv_orient_try5_manip10_horizon3.npy'
+        np.save('./result/'+filename,datasets)
+        
+        print('7')
+        manip_coeff = 0.0
+        datasets = agent.run_policy(num_episode = 5, episode_length = 500, time_horizon = 5, init_pose=init_pose, goal_pose = goal_pose, manip_coeff = manip_coeff,istest=istest)
+        filename = 'deriv_orient_try5_manip00_horizon5.npy'
+        np.save('./result/'+filename,datasets)
+        
+        print('8')
+        manip_coeff = 0.5
+        datasets = agent.run_policy(num_episode = 5, episode_length = 500, time_horizon = 5, init_pose=init_pose, goal_pose = goal_pose, manip_coeff = manip_coeff,istest=istest)
+        filename = 'deriv_orient_try5_manip05_horizon5.npy'
+        np.save('./result/'+filename,datasets)
+        
+        print('9')
+        manip_coeff = 1.0
+        datasets = agent.run_policy(num_episode = 5, episode_length = 500, time_horizon = 5, init_pose=init_pose, goal_pose = goal_pose, manip_coeff = manip_coeff,istest=istest)
+        filename = 'deriv_orient_try5_manip10_horizon5.npy'
+        np.save('./result/'+filename,datasets)
+        
+        print('10')
+        manip_coeff = 0.0
+        datasets = agent.run_policy(num_episode = 5, episode_length = 500, time_horizon = 7, init_pose=init_pose, goal_pose = goal_pose, manip_coeff = manip_coeff,istest=istest)
+        filename = 'deriv_orient_try5_manip00_horizon7.npy'
+        np.save('./result/'+filename,datasets)
+        
+        print('11')
+        manip_coeff = 0.5
+        datasets = agent.run_policy(num_episode = 5, episode_length = 500, time_horizon = 7, init_pose=init_pose, goal_pose = goal_pose, manip_coeff = manip_coeff,istest=istest)
+        filename = 'deriv_orient_try5_manip05_horizon7.npy'
+        np.save('./result/'+filename,datasets)
+        
+        print('12')
+        manip_coeff = 1.0
+        datasets = agent.run_policy(num_episode = 5, episode_length = 500, time_horizon = 7, init_pose=init_pose, goal_pose = goal_pose, manip_coeff = manip_coeff,istest=istest)
+        filename = 'deriv_orient_try5_manip10_horizon7.npy'
+        np.save('./result/'+filename,datasets)
     
-    #filename = 'datasets_damp_2500.npy'
-    #np.save('./'+filename,datasets)
+    
 if __name__ == '__main__':
     main()
