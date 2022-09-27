@@ -6,7 +6,7 @@ import numpy as np
 
 
 class NeuralNet():
-    def __init__(self, layers, activation, deriv = False, deriv_loss_weight = 0.001):
+    def __init__(self, layers, activation, deriv = False, deriv_loss_weight = 0.0001):
         self.layers = layers
         self.activation = activation
         self.deriv = deriv
@@ -108,10 +108,11 @@ class NeuralNet():
             self.pred_deriv_next_state_tf =self.auto_diff(self.cur_state_tf, self.desired_next_pose, self.deriv_current_state_tf, self.desired_next_vel, self.pred_next_state)
 
             self.deriv_loss = tf.losses.mean_squared_error(self.pred_deriv_next_state_tf, self.deriv_next_state_tf)
-         
+            vars   = tf.trainable_variables() 
+            lossL2 = tf.add_n([ tf.nn.l2_loss(v) for v in vars ]) * 0.00001
             
         if self.deriv:
-            self.loss = self.state_loss + self.deriv_loss * self.deriv_loss_weight
+            self.loss = self.state_loss + self.deriv_loss * self.deriv_loss_weight + lossL2
         else:
             self.loss = self.state_loss
         

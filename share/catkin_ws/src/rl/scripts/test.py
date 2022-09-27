@@ -8,112 +8,311 @@ from collections import defaultdict
 import matplotlib.pyplot as plt
 from mpl_toolkits import mplot3d
 
+
+## real m index
+###naive
 # try1
-# horizon1 0.229 -> 0.230 --> 0.234
-# horizon3 0.225 -> 0.227 --> 0.230
-# horizon5 0.219 -> 0.224 --> 0.234
-# horizon7 0.214 -> 0.222 --> 0.224
+# horizon1 0.229 -> 0.230 --> 0.234   85.2 -> 84.8 -> 85.0
+# horizon3 0.225 -> 0.227 --> 0.230   86.4 -> 85.8 -> 85.4
+# horizon5 0.219 -> 0.224 --> 0.234   89.0 -> 87.8 -> 85.0
+# horizon7 0.214 -> 0.222 --> 0.224   94.4 -> 90.8 -> 91.0
 
 # try2
-# horizon1 0.112 -> 0.118 --> 0.125
-# horizon3 0.111 -> 0.117 --> 0.123
-# horizon5 0.109 -> 0.116 --> 0.125
-# horizon7 0.107 -> 0.114 --> 0.123
+# horizon1 0.112 -> 0.118 --> 0.125   67.2 -> 65.2 -> 64.6
+# horizon3 0.111 -> 0.117 --> 0.123   69.0 -> 67.6 -> 67.0
+# horizon5 0.109 -> 0.116 --> 0.125   70.4 -> 68.6 -> 64.6
+# horizon7 0.107 -> 0.114 --> 0.123   73.4 -> 71.0 -> 68.8 
 
 # try3
-# horizon1 0.158 -> 0.179 --> 0.226
-# horizon3 0.163 -> 0.187 --> 0.235
-# horizon5 0.164 -> 0.194 --> 0.226
-# horizon7 0.167 -> 0.200 --> 0.241
+# horizon1 0.158 -> 0.179 --> 0.226   193.0 -> 195.4 -> 215.4
+# horizon3 0.163 -> 0.187 --> 0.235   196.2 -> 200.8 -> 222.4
+# horizon5 0.164 -> 0.194 --> 0.226   196.2 -> 204.0 -> 215.4
+# horizon7 0.167 -> 0.200 --> 0.241   198.6 -> 208.4 -> 231.2
+
+# try4
+# horizon1 0.115 -> 0.115 --> 0.116    53.4 -> 52.6 -> 53.4
+# horizon3 0.116 -> 0.117 --> 0.118    55.0 -> 54.2 -> 54.6
+# horizon5 0.119 -> 0.119 --> 0.116    56.0 -> 56.0 -> 53.4
+# horizon7 0.120 -> 0.119 --> 0.120    57.6 -> 57.2 -> 57.8
+
+# try5
+# horizon1 0.136 -> 0.146 --> 0.151    69.8 -> 70.2 -> 71.2
+# horizon3 0.135 -> 0.143 --> 0.150    71.2 -> 71.6 -> 72.0
+# horizon5 0.136 -> 0.142 --> 0.151    72.2 -> 73.0 -> 74.4
+# horizon7 0.145 -> 0.143 --> 0.147    161.0 -> 80.0 -> 75.6
 
 
+###deriv
+# try1
+# horizon1  
+# horizon3  
+# horizon5  
+# horizon7  
+
+# try2
+# horizon1  0.132 -> 0.136 -> 0.143   63.8 -> 64.2 -> 65.4
+# horizon3  0.133 -> 0.137 -> 0.145   65.2 -> 64.8 -> 67.4
+# horizon5  0.133 -> 0.136 -> 0.143   64.3 -> 66.0 -> 65.4
+# horizon7  0.132 -> 0.134 -> 0.146   66.4 -> 66.0 -> 69.2
+
+# try3
+# horizon1  0.162 -> 0.178 -> 0.222   190.0 -> 196.4 -> 212.8
+# horizon3  0.162 -> 0.184 -> 0.235   192.8 -> 199.0 -> 223.0
+# horizon5  0.161 -> 0.194 -> 0.222   194.0 -> 201.6 -> 212.8
+# horizon7  0.160 -> 0.198 -> 0.241   195.2 -> 206.8 -> 228.4
+
+# try4
+# horizon1  0.120 -> 0.123 -> 0.124  53.4 -> 53.4 -> 54.0
+# horizon3  0.119 -> 0.122 -> 0.123  54.0 -> 54.4 -> 54.8
+# horizon5  0.119 -> 0.121 -> 0.124  54.8 -> 55.2 -> 54.0
+# horizon7  0.117 -> 0.122 -> 0.124  54.8 -> 55.8 -> 55.8
+
+# try5
+# horizon1  0.160 -> 0.166 -> 0.169  66.0 -> 67.4 -> 67.8
+# horizon3  0.155 -> 0.163 -> 0.167  66.8 -> 68.2 -> 68.2
+# horizon5  0.154 -> 0.158 -> 0.169  67.2 -> 69.4 -> 67.8
+# horizon7  0.147 -> 0.157 -> 0.162  69.4 -> 70.2 -> 71.0
+
+#########################################################################################
+###naive
+# try1
+# horizon1 0.226 0.229 0.230  84.6 54.0 87.6
+# horizon3 0.224 0.227 0.229  85.6 85.6 85.6
+# horizon5 0.216 0.222 0.230  92.0 89.3 84.0
+# horizon7 fail fail fail
+
+# try2
+# horizon1 0.126 0.129 0.131  63.3 63.6 63.6
+# horizon3 0.125 0.128 0.131  64.3 63.6 64.3
+# horizon5 0.120 0.123 0.131  69.0 70.0 63.6
+# horizon7 0.122 0.126 0.131  66.0 66.3 66.6
+
+# try3
+# horizon1 0.170 0.205 0.230  192.6 205.3 224.6  
+# horizon3 0.169 0.203 0.228  196.0 205.6 229.0  
+# horizon5 0.169 0.203 0.230  197.0 209.6 224.6  
+# horizon7 0.168 0.204 0.227  199.6 211.0 233.6  
+
+# try4
+# horizon1 0.114 0.114 0.115  52.0 52.3 53.0
+# horizon3 0.114 0.113 0.114  53.3 53.0 52.3
+# horizon5 0.114 0.115 0.115  54.0 53.0 53.0
+# horizon7 0.113 0.115 0.115  54.6 55.0 56.0
+
+# try5
+# horizon1 0.135 0.137 0.140  70.3 67.6 67.0
+# horizon3 0.135 0.136 0.139  72.6 72.0 69.0
+# horizon5 0.132 0.133 0.134  73.3 78.6 67.0
+# horizon7 0.130 0.132 0.134  76.6 77.6 75.0
+
+###deriv
+# try1
+# horizon1 0.231 0.238 0.247  83.6 84.3 84.3
+# horizon3 0.230 0.235 0.244  85.0 84.3 86.6
+# horizon5 0.226 0.231 0.247  85.3 88.0 84.3
+# horizon7 0.224 0.225 0.235  89.6 88.3 89.6
+
+# try2
+# horizon1 0.133 0.133 0.134  64.3 64.3 65.3
+# horizon3 0.134 0.134 0.134  64.3 66.0 65.3
+# horizon5 0.134 0.134 0.134  66.0 65.3 65.0
+# horizon7 0.132 0.134 0.134  67.0 67.3 67.6
+
+# try3 (얘만 성능 안좋음)
+# horizon1 0.164 0.180 0.218  190.3 194.6 210.0
+# horizon3 0.162 0.181 0.215  191.6 197.3 212.3
+# horizon5 0.159 0.180 0.218  191.6 197.3 210.0
+# horizon7 0.158 0.180 0.215  193.3 200.0 218.3
+
+# try4
+# horizon1 0.116 0.120 0.123  52.6 53.6 53.3
+# horizon3 0.115 0.119 0.123  53.6 54.0 55.0
+# horizon5 0.117 0.119 0.123  54.0 55.0 53.3
+# horizon7 0.117 0.118 0.122  53.3 54.0 55.6
+
+# try5
+# horizon1 0.153 0.153 0.164  63.6 64.3 65.0
+# horizon3 0.152 0.153 0.164  65.6 65.6 66.0
+# horizon5 0.151 0.152 0.164  67.6 67.3 65.0
+# horizon7 0.149 0.151 0.162  70.3 69.6 70.3
+
+
+
+### 
 def main():
-    
-    datasets = np.load('./result/deriv_orient_try3_manip00_horizon1.npy', encoding='bytes')
+
+
+    datasets = np.load('./result/exp2/naive/naive_orient_try1_manip00_horizon1.npy', encoding='bytes')
     mean = []
-    for i in range(5):
+    for i in range(3):
         real_m_index = np.asarray(datasets[i]['real_m_index'])
         mean.append(np.mean(real_m_index))
     print(np.mean(np.asarray(mean)))
         
-    datasets = np.load('./result/deriv_orient_try3_manip05_horizon1.npy', encoding='bytes')
+    datasets = np.load('./result/exp2/naive/naive_orient_try1_manip05_horizon1.npy', encoding='bytes')
     mean = []
-    for i in range(5):
+    for i in range(3):
         real_m_index = np.asarray(datasets[i]['real_m_index'])
         mean.append(np.mean(real_m_index))
     print(np.mean(np.asarray(mean)))
         
-    datasets = np.load('./result/deriv_orient_try3_manip10_horizon1.npy', encoding='bytes')
+    datasets = np.load('./result/exp2/naive/naive_orient_try1_manip10_horizon1.npy', encoding='bytes')
     mean = []
-    for i in range(5):
+    for i in range(3):
         real_m_index = np.asarray(datasets[i]['real_m_index'])
         mean.append(np.mean(real_m_index))
     print(np.mean(np.asarray(mean)))
         
-    datasets = np.load('./result/deriv_orient_try3_manip00_horizon3.npy', encoding='bytes')
+    datasets = np.load('./result/exp2/naive/naive_orient_try1_manip00_horizon3.npy', encoding='bytes')
     mean = []
-    for i in range(5):
+    for i in range(3):
         real_m_index = np.asarray(datasets[i]['real_m_index'])
         mean.append(np.mean(real_m_index))
     print(np.mean(np.asarray(mean)))
         
-    datasets = np.load('./result/deriv_orient_try3_manip05_horizon3.npy', encoding='bytes')
+    datasets = np.load('./result/exp2/naive/naive_orient_try1_manip05_horizon3.npy', encoding='bytes')
     mean = []
-    for i in range(5):
+    for i in range(3):
         real_m_index = np.asarray(datasets[i]['real_m_index'])
         mean.append(np.mean(real_m_index))
     print(np.mean(np.asarray(mean)))
         
-    datasets = np.load('./result/deriv_orient_try3_manip10_horizon3.npy', encoding='bytes')
+    datasets = np.load('./result/exp2/naive/naive_orient_try1_manip10_horizon3.npy', encoding='bytes')
     mean = []
-    for i in range(5):
+    for i in range(3):
         real_m_index = np.asarray(datasets[i]['real_m_index'])
         mean.append(np.mean(real_m_index))
     print(np.mean(np.asarray(mean)))
         
-    datasets = np.load('./result/deriv_orient_try3_manip00_horizon5.npy', encoding='bytes')
+    datasets = np.load('./result/exp2/naive/naive_orient_try1_manip00_horizon5.npy', encoding='bytes')
     mean = []
-    for i in range(5):
+    for i in range(3):
         real_m_index = np.asarray(datasets[i]['real_m_index'])
         mean.append(np.mean(real_m_index))
     print(np.mean(np.asarray(mean)))
         
-    datasets = np.load('./result/deriv_orient_try3_manip05_horizon5.npy', encoding='bytes')
+    datasets = np.load('./result/exp2/naive/naive_orient_try1_manip05_horizon5.npy', encoding='bytes')
     mean = []
-    for i in range(5):
+    for i in range(3):
         real_m_index = np.asarray(datasets[i]['real_m_index'])
         mean.append(np.mean(real_m_index))
     print(np.mean(np.asarray(mean)))  
         
-    datasets = np.load('./result/deriv_orient_try3_manip10_horizon1.npy', encoding='bytes')
+    datasets = np.load('./result/exp2/naive/naive_orient_try1_manip10_horizon1.npy', encoding='bytes')
     mean = []
-    for i in range(5):
+    for i in range(3):
         real_m_index = np.asarray(datasets[i]['real_m_index'])
         mean.append(np.mean(real_m_index))
     print(np.mean(np.asarray(mean)))
-    
-    
-    datasets = np.load('./result/deriv_orient_try3_manip00_horizon7.npy', encoding='bytes')
+    '''
+    datasets = np.load('./result/exp2/naive/naive_orient_try1_manip00_horizon7.npy', encoding='bytes')
     mean = []
-    for i in range(5):
+    for i in range(3):
         real_m_index = np.asarray(datasets[i]['real_m_index'])
         mean.append(np.mean(real_m_index))
     print(np.mean(np.asarray(mean)))
         
-    datasets = np.load('./result/deriv_orient_try3_manip05_horizon7.npy', encoding='bytes')
+    datasets = np.load('./result/exp2/naive/naive_orient_try1_manip05_horizon7.npy', encoding='bytes')
     mean = []
-    for i in range(5):
+    for i in range(3):
         real_m_index = np.asarray(datasets[i]['real_m_index'])
         mean.append(np.mean(real_m_index))
     print(np.mean(np.asarray(mean)))  
         
-    datasets = np.load('./result/deriv_orient_try3_manip10_horizon7.npy', encoding='bytes')
+    datasets = np.load('./result/exp2/naive/naive_orient_try1_manip10_horizon7.npy', encoding='bytes')
     mean = []
-    for i in range(5):
+    for i in range(3):
         real_m_index = np.asarray(datasets[i]['real_m_index'])
         mean.append(np.mean(real_m_index))
     print(np.mean(np.asarray(mean)))
+    '''
+     
+     
+    datasets = np.load('./result/exp2/naive/naive_orient_try1_manip00_horizon1.npy', encoding='bytes')
+    mean = []
+    for i in range(3):
+        real_m_index = np.asarray(datasets[i]['real_m_index'])
+        mean.append(real_m_index.shape)
+    print(np.mean(np.asarray(mean)))
         
+    datasets = np.load('./result/exp2/naive/naive_orient_try1_manip05_horizon1.npy', encoding='bytes')
+    mean = []
+    for i in range(3):
+        real_m_index = np.asarray(datasets[i]['real_m_index'])
+        mean.append(real_m_index.shape)
+    print(np.mean(np.asarray(mean)))
+        
+    datasets = np.load('./result/exp2/naive/naive_orient_try1_manip10_horizon1.npy', encoding='bytes')
+    mean = []
+    for i in range(3):
+        real_m_index = np.asarray(datasets[i]['real_m_index'])
+        mean.append(real_m_index.shape)
+    print(np.mean(np.asarray(mean)))
+        
+    datasets = np.load('./result/exp2/naive/naive_orient_try1_manip00_horizon3.npy', encoding='bytes')
+    mean = []
+    for i in range(3):
+        real_m_index = np.asarray(datasets[i]['real_m_index'])
+        mean.append(real_m_index.shape)
+    print(np.mean(np.asarray(mean)))
+        
+    datasets = np.load('./result/exp2/naive/naive_orient_try1_manip05_horizon3.npy', encoding='bytes')
+    mean = []
+    for i in range(3):
+        real_m_index = np.asarray(datasets[i]['real_m_index'])
+        mean.append(real_m_index.shape)
+    print(np.mean(np.asarray(mean)))
+        
+    datasets = np.load('./result/exp2/naive/naive_orient_try1_manip10_horizon3.npy', encoding='bytes')
+    mean = []
+    for i in range(3):
+        real_m_index = np.asarray(datasets[i]['real_m_index'])
+        mean.append(real_m_index.shape)
+    print(np.mean(np.asarray(mean)))
+        
+    datasets = np.load('./result/exp2/naive/naive_orient_try1_manip00_horizon5.npy', encoding='bytes')
+    mean = []
+    for i in range(3):
+        real_m_index = np.asarray(datasets[i]['real_m_index'])
+        mean.append(real_m_index.shape)
+    print(np.mean(np.asarray(mean)))
+        
+    datasets = np.load('./result/exp2/naive/naive_orient_try1_manip05_horizon5.npy', encoding='bytes')
+    mean = []
+    for i in range(3):
+        real_m_index = np.asarray(datasets[i]['real_m_index'])
+        mean.append(real_m_index.shape)
+    print(np.mean(np.asarray(mean)))  
+        
+    datasets = np.load('./result/exp2/naive/naive_orient_try1_manip10_horizon1.npy', encoding='bytes')
+    mean = []
+    for i in range(3):
+        real_m_index = np.asarray(datasets[i]['real_m_index'])
+        mean.append(real_m_index.shape)
+    print(np.mean(np.asarray(mean)))
+    
+    '''
+    datasets = np.load('./result/exp2/naive/naive_orient_try1_manip00_horizon7.npy', encoding='bytes')
+    mean = []
+    for i in range(3):
+        real_m_index = np.asarray(datasets[i]['real_m_index'])
+        mean.append(real_m_index.shape)
+    print(np.mean(np.asarray(mean)))
+        
+    datasets = np.load('./result/exp2/naive/naive_orient_try1_manip05_horizon7.npy', encoding='bytes')
+    mean = []
+    for i in range(3):
+        real_m_index = np.asarray(datasets[i]['real_m_index'])
+        mean.append(real_m_index.shape)
+    print(np.mean(np.asarray(mean)))  
+        
+    datasets = np.load('./result/exp2/naive/naive_orient_try1_manip10_horizon7.npy', encoding='bytes')
+    mean = []
+    for i in range(3):
+        real_m_index = np.asarray(datasets[i]['real_m_index'])
+        mean.append(real_m_index.shape)
+    print(np.mean(np.asarray(mean)))
+    '''
     '''
     fig = plt.figure(figsize=(30,20))
     
