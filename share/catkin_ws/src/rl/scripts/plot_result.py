@@ -10,6 +10,11 @@ from mpl_toolkits import mplot3d
 from mpl_toolkits.mplot3d import Axes3D
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection # New import
 
+
+# 거리 계산을 위한 함수 필요함
+# real cur pos 의 각 trial, episode 별로 현재위치 - 이전위치의 sqrt(dx**2+dy**2+dz**2) 를 더해서   거리를 return 해야 함
+# manipulability index는 min, max, mean 값을 표로 나타내기
+
 def get_plot_components(exp, method, filename):
     f = './result/'+exp+'/'+method+'/'+method+'_'+filename+'.npy'
     datasets = np.load(f, encoding='bytes')

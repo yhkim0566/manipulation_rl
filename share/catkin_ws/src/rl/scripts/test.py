@@ -141,7 +141,7 @@ from mpl_toolkits import mplot3d
 ### 
 def main():
 
-
+    '''
     datasets = np.load('./result/exp2/naive/naive_orient_try1_manip00_horizon1.npy', encoding='bytes')
     mean = []
     for i in range(3):
@@ -204,7 +204,7 @@ def main():
         real_m_index = np.asarray(datasets[i]['real_m_index'])
         mean.append(np.mean(real_m_index))
     print(np.mean(np.asarray(mean)))
-    '''
+    
     datasets = np.load('./result/exp2/naive/naive_orient_try1_manip00_horizon7.npy', encoding='bytes')
     mean = []
     for i in range(3):
@@ -225,7 +225,7 @@ def main():
         real_m_index = np.asarray(datasets[i]['real_m_index'])
         mean.append(np.mean(real_m_index))
     print(np.mean(np.asarray(mean)))
-    '''
+    
      
      
     datasets = np.load('./result/exp2/naive/naive_orient_try1_manip00_horizon1.npy', encoding='bytes')
@@ -291,7 +291,7 @@ def main():
         mean.append(real_m_index.shape)
     print(np.mean(np.asarray(mean)))
     
-    '''
+    
     datasets = np.load('./result/exp2/naive/naive_orient_try1_manip00_horizon7.npy', encoding='bytes')
     mean = []
     for i in range(3):
@@ -356,7 +356,7 @@ def main():
     
     #path = '/root/share/catkin_ws/src/ur10_teleop_interface/scripts/'
     #filename = 'ntraj50_params_ori02_xyz_08_05_in_055_03.npy'
-    #datasets = np.load('./dataset/ntraj50_params_ori02_xyz_08_05_in_055_03.npy', encoding='bytes')
+    datasets = np.load('./dataset/ntraj50_params_ori02_xyz_08_05_in_055_03_trial2.npy_2.npy', encoding='bytes')
     
     '''
     ratio = 0.8
@@ -381,9 +381,9 @@ def main():
     plt.hist(m_index)
     plt.show()
     '''
-    '''
-    fig = plt.figure(figsize=(30,20))
     
+    fig = plt.figure(figsize=(30,20))
+    fig.suptitle('Translation', fontsize=18)
     ax1 = fig.add_subplot(3,2,1, projection='3d')
     ax1.title.set_text('trajectory 1~50')
     ax1.set_xlabel('x')
@@ -393,24 +393,24 @@ def main():
     ax1.set_xlim([-0.8,0.8])
     ax1.set_ylim([0.3,0.85])
     ax1.set_zlim([0.3,0.85])
-    
-    #ax1.set_xlim([-3.14,3.14])
-    #ax1.set_ylim([-3.14,3.14])
-    #ax1.set_zlim([-3.14,3.14])
+
+    #ax1.set_xlim([-0.2,0.2])
+    #ax1.set_ylim([0.65,1.05])
+    #ax1.set_zlim([1.4,1.80])
     index1 = 0
     index2 = 1
     index3 = 2
     name = b'unity_cur_pos'
     name2 = b'real_cur_pos'
     
-    ax1.plot(np.asarray(datasets[-1][name])[:,index1], np.asarray(datasets[-1][name])[:,index2], np.asarray(datasets[-1][name])[:,index3],lw=2, color='coral',label='unity')
+    #ax1.plot(np.asarray(datasets[-1][name])[:,index1], np.asarray(datasets[-1][name])[:,index2], np.asarray(datasets[-1][name])[:,index3],lw=2, color='coral',label='unity')
     ax1.plot(np.asarray(datasets[-1][name2])[:,index1], np.asarray(datasets[-1][name2])[:,index2], np.asarray(datasets[-1][name2])[:,index3],lw=2, color='royalblue', label = 'real') 
     
-    for i in range(1,50):
+    for i in range(1,47):
         dataset = datasets[i]
-        ax1.plot(np.asarray(datasets[i][name])[:,index1], np.asarray(datasets[i][name])[:,index2], np.asarray(datasets[i][name])[:,index3],lw=2, color='coral')
+        #ax1.plot(np.asarray(datasets[i][name])[:,index1], np.asarray(datasets[i][name])[:,index2], np.asarray(datasets[i][name])[:,index3],lw=2, color='coral')
         ax1.plot(np.asarray(datasets[i][name2])[:,index1], np.asarray(datasets[i][name2])[:,index2], np.asarray(datasets[i][name2])[:,index3],lw=2, color='royalblue')
-    ax1.legend()
+    #ax1.legend()
     
     ax2 = fig.add_subplot(3,2,2, projection='3d')
     ax2.title.set_text('trajectory 1~10')
@@ -421,8 +421,8 @@ def main():
     ax2.set_ylim([0.3,0.85])
     ax2.set_zlim([0.3,0.85])
     
-    for i in range(0,10):
-        ax2.plot(np.asarray(datasets[i][name])[:,index1], np.asarray(datasets[i][name])[:,index2], np.asarray(datasets[i][name])[:,index3],lw=2, color='coral')
+    for i in range(0,9):
+        #ax2.plot(np.asarray(datasets[i][name])[:,index1], np.asarray(datasets[i][name])[:,index2], np.asarray(datasets[i][name])[:,index3],lw=2, color='coral')
         ax2.plot(np.asarray(datasets[i][name2])[:,index1], np.asarray(datasets[i][name2])[:,index2], np.asarray(datasets[i][name2])[:,index3],lw=2, color='royalblue')
     
     ax3 = fig.add_subplot(3,2,3, projection='3d')
@@ -434,8 +434,8 @@ def main():
     ax3.set_ylim([0.3,0.85])
     ax3.set_zlim([0.3,0.85])
     
-    for i in range(11,20):   
-        ax3.plot(np.asarray(datasets[i][name])[:,index1], np.asarray(datasets[i][name])[:,index2], np.asarray(datasets[i][name])[:,index3],lw=2, color='coral')
+    for i in range(10,18):   
+        #ax3.plot(np.asarray(datasets[i][name])[:,index1], np.asarray(datasets[i][name])[:,index2], np.asarray(datasets[i][name])[:,index3],lw=2, color='coral')
         ax3.plot(np.asarray(datasets[i][name2])[:,index1], np.asarray(datasets[i][name2])[:,index2], np.asarray(datasets[i][name2])[:,index3],lw=2, color='royalblue')
         
     ax4 = fig.add_subplot(3,2,4, projection='3d')
@@ -447,8 +447,8 @@ def main():
     ax4.set_ylim([0.3,0.85])
     ax4.set_zlim([0.3,0.85])
     
-    for i in range(21,30):
-        ax4.plot(np.asarray(datasets[i][name])[:,index1], np.asarray(datasets[i][name])[:,index2], np.asarray(datasets[i][name])[:,index3],lw=2, color='coral')
+    for i in range(19,27):
+        #ax4.plot(np.asarray(datasets[i][name])[:,index1], np.asarray(datasets[i][name])[:,index2], np.asarray(datasets[i][name])[:,index3],lw=2, color='coral')
         ax4.plot(np.asarray(datasets[i][name2])[:,index1], np.asarray(datasets[i][name2])[:,index2], np.asarray(datasets[i][name2])[:,index3],lw=2, color='royalblue')
         
     ax5 = fig.add_subplot(3,2,5, projection='3d')
@@ -460,8 +460,8 @@ def main():
     ax5.set_ylim([0.3,0.85])
     ax5.set_zlim([0.3,0.85])
     
-    for i in range(31,40):
-        ax5.plot(np.asarray(datasets[i][name])[:,index1], np.asarray(datasets[i][name])[:,index2], np.asarray(datasets[i][name])[:,index3],lw=2, color='coral')
+    for i in range(28,37):
+        #ax5.plot(np.asarray(datasets[i][name])[:,index1], np.asarray(datasets[i][name])[:,index2], np.asarray(datasets[i][name])[:,index3],lw=2, color='coral')
         ax5.plot(np.asarray(datasets[i][name2])[:,index1], np.asarray(datasets[i][name2])[:,index2], np.asarray(datasets[i][name2])[:,index3],lw=2, color='royalblue')
         
     ax6 = fig.add_subplot(3,2,6, projection='3d')
@@ -473,17 +473,17 @@ def main():
     ax6.set_ylim([0.3,0.85])
     ax6.set_zlim([0.3,0.85])
     
-    for i in range(41,50):
-        ax6.plot(np.asarray(datasets[i][name])[:,index1], np.asarray(datasets[i][name])[:,index2], np.asarray(datasets[i][name])[:,index3],lw=2, color='coral')
+    for i in range(39,47):
+        #ax6.plot(np.asarray(datasets[i][name])[:,index1], np.asarray(datasets[i][name])[:,index2], np.asarray(datasets[i][name])[:,index3],lw=2, color='coral')
         ax6.plot(np.asarray(datasets[i][name2])[:,index1], np.asarray(datasets[i][name2])[:,index2], np.asarray(datasets[i][name2])[:,index3],lw=2, color='royalblue')
     
 
-        
-    plt.legend(fontsize=15)
+    plt.tight_layout(h_pad=0.5, rect=(0,0,1.0,0.96))    
+    #plt.legend(fontsize=15)
     plt.show()
-    fig.savefig('./trajectory comparison.png')
-    fig.savefig('./trajectory.pdf',dpi=600)
-    '''
+    fig.savefig('./trajectory translation.png')
+    fig.savefig('./trajectory translation.pdf',dpi=600)
+    
 if __name__ == '__main__':
     main()
     
