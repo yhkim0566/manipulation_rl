@@ -27,6 +27,7 @@ class NeuralNet():
         n_th5_tt = tf.expand_dims(tf.reduce_sum(tf.gradients(pred_next_state[:,10],cur_state_tf)[0]*deriv_cur_state_tf,1)+tf.reduce_sum(tf.gradients(pred_next_state[:,10],desired_next_pose)[0]*desired_next_vel,1),1)
         n_th6_tt = tf.expand_dims(tf.reduce_sum(tf.gradients(pred_next_state[:,11],cur_state_tf)[0]*deriv_cur_state_tf,1)+tf.reduce_sum(tf.gradients(pred_next_state[:,11],desired_next_pose)[0]*desired_next_vel,1),1)
 
+        #return tf.concat([n_th1_t, n_th2_t, n_th3_t, n_th4_t, n_th5_t, n_th6_t],1)
         return tf.concat([n_th1_t, n_th2_t, n_th3_t, n_th4_t, n_th5_t, n_th6_t, n_th1_tt, n_th2_tt, n_th3_tt, n_th4_tt, n_th5_tt, n_th6_tt],1)
 
     def initialize_NN(self):        
@@ -97,6 +98,8 @@ class NeuralNet():
         self.pred_next_state = self.model(tf.concat([self.cur_state_tf, self.desired_next_pose],1), weights, biases, 1.0)
         
         self.state_loss  = tf.losses.mean_squared_error(self.next_state_tf, self.pred_next_state)
+        vars   = tf.trainable_variables() 
+        lossL2 = tf.add_n([ tf.nn.l2_loss(v) for v in vars ]) * 0.00001
         
         if self.deriv:
             self.desired_next_vel = tf.placeholder(tf.float32, [None, 6], name="desired_next_vel")
@@ -108,13 +111,12 @@ class NeuralNet():
             self.pred_deriv_next_state_tf =self.auto_diff(self.cur_state_tf, self.desired_next_pose, self.deriv_current_state_tf, self.desired_next_vel, self.pred_next_state)
 
             self.deriv_loss = tf.losses.mean_squared_error(self.pred_deriv_next_state_tf, self.deriv_next_state_tf)
-            vars   = tf.trainable_variables() 
-            lossL2 = tf.add_n([ tf.nn.l2_loss(v) for v in vars ]) * 0.00001
+
             
         if self.deriv:
             self.loss = self.state_loss + self.deriv_loss * self.deriv_loss_weight + lossL2
         else:
-            self.loss = self.state_loss
+            self.loss = self.state_loss + lossL2
         
         self.optimizer = tf.train.AdamOptimizer(learning_rate=0.001).minimize(self.loss)
         self.sess.run(tf.global_variables_initializer())    

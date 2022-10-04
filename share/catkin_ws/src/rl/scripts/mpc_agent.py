@@ -27,7 +27,7 @@ class MPC_Agent():
     def __init__(self, model, m_model, gen_traj, thread_rate):
         
         self.gen_traj = gen_traj
-        self.unit_coeff = 0.05
+        self.unit_coeff = 0.01
         self.model = model
         self.m_model = m_model
         self.thread_rate = thread_rate
@@ -47,7 +47,7 @@ class MPC_Agent():
         orientation = states[:,3:6]
         
         norm_action_list = self.action_list[:,0:3] / (np.reshape(np.sqrt(self.action_list[:,0]**2+self.action_list[:,1]**2+self.action_list[:,2]**2),(-1,1))+10E-6)
-        orientation_action_list = self.action_list[:,3:6]*0.03
+        orientation_action_list = self.action_list[:,3:6]*0.00
                    
         first_actions = np.concatenate([states[:,0:3] + norm_action_list * vel_coeff * self.unit_coeff,orientation + orientation_action_list],1)
         action = first_actions
@@ -74,9 +74,13 @@ class MPC_Agent():
 
             print('reset the episode and generate random goal')
             state = self.reset(init_pos= init_pose, goal_pos=goal_pose, istest=istest)
+            self.obstacle1, self.obstacle2 = self.generate_obstacles(init_pose, goal_pose)
+            print('obstacles')
+            print(self.obstacle1, self.obstacle2)
+            print('start, goal')
             print(state[:,0:6], self.goal)
             rospy.set_param('/real/mode', JOINT_CONTROL)
-            self.action_list = np.asarray(list(product([-1,-0.5,0,0.5,1],repeat=6)))
+            self.action_list = np.concatenate([np.asarray(list(product([-1,-0.75,-0.5,-0.25,0,0.25,0.5,0.75,1],repeat=3))),np.zeros((9*9*9,3))],1)
             desired_next_pose = self.get_optimal_action(state, vel_coeff)
             dataset = defaultdict(list) 
             for j in range(episode_length):
@@ -92,15 +96,15 @@ class MPC_Agent():
                 desired_next_pose = self.get_optimal_action(state, vel_coeff)
                 self.prev_pose = state
                 state = next_state
-                if dist_reward < self.unit_coeff*2:
-                    self.action_list = np.concatenate([np.zeros((9*9*9,3)), np.asarray(list(product([-1,-0.75,-0.5,-0.25,0,0.25,0.5,0.75,1],repeat=3)))],1)
+                if dist_reward < self.unit_coeff/10:
+                    self.action_list = np.concatenate([np.zeros((5*5*5,3)), np.asarray(list(product([-1,-0.75,-0.5,-0.25,0,0.25,0.5,0.75,1],repeat=3)))],1)
                     if orientation_reward < 0.1: ## minimum moving resolution < sqrt(x_resolution^2 + y_resolution^2 + z_resolution^2)
                         print('arrived at the goal')
                         break
                     
                 if orientation_reward < 0.1:
                     self.action_list = np.concatenate([np.asarray(list(product([-1,-0.75,-0.5,-0.25,0,0.25,0.5,0.75,1],repeat=3))),np.zeros((9*9*9,3))],1)
-                    if  dist_reward < self.unit_coeff:## minimum moving resolution < sqrt(x_resolution^2 + y_resolution^2 + z_resolution^2)
+                    if  dist_reward < self.unit_coeff/10:## minimum moving resolution < sqrt(x_resolution^2 + y_resolution^2 + z_resolution^2)
                         print('arrived at the goal')
                         break
                 #print(dist_reward,m_index_reward)
@@ -124,18 +128,28 @@ class MPC_Agent():
     
     def cost_fn(self, pred_next_states):
         distance_cost = np.sqrt(np.sum((pred_next_states[:,0:3]-self.goal[0:3])**2,1))
-        orientation_cost = np.sqrt(np.sum((pred_next_states[:,3:6]-self.goal[3:6])**2,1))*0.5
-        manipulability_cost = -self.m_model.predict(pred_next_states[:,0:6]).flatten()*np.mean(distance_cost)*self.manip_coeff
-        scores = distance_cost + orientation_cost+ manipulability_cost
+        orientation_cost = 0.0#np.sqrt(np.sum((pred_next_states[:,3:6]-self.goal[3:6])**2,1))*0.5
+        if np.max(np.sqrt(np.sum((pred_next_states[:,0:3]-self.obstacle1)**2,1))) < 0.1:
+            obstacle1_cost = -np.sqrt(np.sum((pred_next_states[:,0:3]-self.obstacle1)**2,1))*0.3
+        else:
+            obstacle1_cost = 0.0
+        if np.max(np.sqrt(np.sum((pred_next_states[:,0:3]-self.obstacle2)**2,1))) < 0.1:
+            obstacle2_cost = -np.sqrt(np.sum((pred_next_states[:,0:3]-self.obstacle2)**2,1))*0.3
+        else:
+            obstacle2_cost = 0.0
+        #manipulability_cost = -self.m_model.predict(pred_next_states[:,0:6]).flatten()*np.mean(distance_cost)*self.manip_coeff
+        scores = distance_cost + orientation_cost + obstacle1_cost + obstacle2_cost#+ manipulability_cost
         return scores
     
     def reward_fn(self, state):
         
         distance_cost = np.sqrt(np.sum((state[:,0:3]-self.goal[0:3])**2)) 
         orientation_cost = np.sqrt(np.sum((state[:,3:6]-self.goal[3:6])**2,1))
-        manipulability_cost = self.m_model.predict(state[:,0:6]).flatten()
-        print(distance_cost, orientation_cost, manipulability_cost)
-        return distance_cost, orientation_cost, manipulability_cost
+        obstacle_cost = -np.sqrt(np.sum((state[:,0:3]-self.obstacle1)**2,1)) -np.sqrt(np.sum((state[:,0:3]-self.obstacle2)**2,1))
+        
+        #manipulability_cost = self.m_model.predict(state[:,0:6]).flatten()
+        print(distance_cost, orientation_cost, obstacle_cost)#, manipulability_cost)
+        return distance_cost, orientation_cost, obstacle_cost#, manipulability_cost
     
     def reset(self, init_pos, goal_pos, istest):
 
@@ -208,6 +222,17 @@ class MPC_Agent():
 
         
         return (pose[0],pose[1],pose[2],pose[3],pose[4],pose[5]) 
+    
+    def generate_obstacles(self, init_pose, goal_pose):
+        line = np.linspace(init_pose,goal_pose,100)
+        
+        obstacle1 = line[33][0:3] 
+        obstacle2 = line[66][0:3] #np.array([-0.3969209, 0.3706089723, 0.742756550])#
+        
+        # random obstacle
+        #obstacle1 = line[33] + np.random.rand(6)*0.1 - 0.05
+        #obstacle2 = line[66] + np.random.rand(6)*0.1 - 0.05
+        return obstacle1, obstacle2
             
  
 def split_and_arrange_dataset(datasets, ratio=0.8):
@@ -241,7 +266,7 @@ def main():
     load_dataset = True
     save = True
     mpc = True
-    deriv = False
+    deriv = True
     rospy.init_node("mpc_loop", anonymous=True)
 
     # define transition model neural network
@@ -252,9 +277,9 @@ def main():
     #layers = [9,100,100,100,6]
     
     if deriv:
-        model_name = 'deriv_ntraj50_params_ori02_xyz_08_05_in_055_03_trial2_ratio090'
+        model_name = 'deriv_ntraj50_params_ori02_xyz_08_05_in_055_03_trial2_ratio090_2222'
     else:
-        model_name = 'naive_ntraj50_params_ori02_xyz_08_05_in_055_03_trial2_ratio090'   
+        model_name = 'naive_ntraj50_params_ori02_xyz_08_05_in_055_03_trial2_ratio090_2222'   
 
     
     layers = [18,100,100,100,12]
@@ -291,7 +316,7 @@ def main():
         train_data, eval_data = split_and_arrange_dataset(datasets,ratio=0.90)
         
         # train models using offline dataset
-        epoch = 3000
+        epoch = 5000
         eval_interval = 100
         train_total_loss, train_state_loss, train_deriv_loss, eval_total_loss, eval_state_loss, eval_deriv_loss = NN.train(epoch, train_data, eval_data, model_name, save, eval_interval)
         #train_total_loss, train_state_loss, train_deriv_loss, eval_total_loss, eval_state_loss, eval_deriv_loss = NN2.train(epoch, train_data, eval_data, model_name2, save, eval_interval)
@@ -312,7 +337,7 @@ def main():
     if mpc:
 
         agent = MPC_Agent(model = NN, m_model = NN_Manip, gen_traj = gen_traj, thread_rate = 40)
-        
+        '''
         #try1
         init_pose = [0.30613005, 0.80924435, 0.54419401, 0.04087591, 1.4184055, 1.51275012]
         goal_pose = [-0.37863849083914725, 0.5847729319475161, 0.6181325218578473, 0.18783086971417767, 1.5114953916525464, 1.2863334733003216]
@@ -370,6 +395,7 @@ def main():
         datasets = agent.run_policy(num_episode = 3, episode_length = 500, time_horizon = 5, init_pose=init_pose, goal_pose = goal_pose, manip_coeff = manip_coeff,istest=istest)
         filename = 'naive_orient_try1_manip10_horizon5.npy'
         np.save('./result/'+filename,datasets)
+        '''
         '''
         print('10')
         manip_coeff = 0.0
@@ -616,17 +642,17 @@ def main():
         datasets = agent.run_policy(num_episode = 3, episode_length = 500, time_horizon = 7, init_pose=init_pose, goal_pose = goal_pose, manip_coeff = manip_coeff,istest=istest)
         filename = 'naive_orient_try4_manip10_horizon7.npy'
         np.save('./result/'+filename,datasets)
-        
+        '''
         #try5
         init_pose = [-0.31735397,  0.59395132,  0.30047592, -0.31696057,  0.91241833,  1.43027166]
         goal_pose = [-0.5106587048041216, 0.419292690922957, 0.8189151099771221, -0.31766847312907986, 1.0880740411752865, 1.613780680747806]
 
         print('1')
         manip_coeff = 0.0
-        datasets = agent.run_policy(num_episode = 3, episode_length = 500, time_horizon = 1, init_pose=init_pose, goal_pose = goal_pose, manip_coeff = manip_coeff,istest=istest)
-        filename = 'naive_orient_try5_manip00_horizon1.npy'
+        datasets = agent.run_policy(num_episode = 1, episode_length = 500, time_horizon = 1, init_pose=init_pose, goal_pose = goal_pose, manip_coeff = manip_coeff,istest=istest)
+        filename = 'obstacle_avoidance.npy'
         np.save('./result/'+filename,datasets)
-        
+        '''
         print('2')
         manip_coeff = 0.5
         datasets = agent.run_policy(num_episode = 3, episode_length = 500, time_horizon = 1, init_pose=init_pose, goal_pose = goal_pose, manip_coeff = manip_coeff,istest=istest)
@@ -692,7 +718,7 @@ def main():
         datasets = agent.run_policy(num_episode = 3, episode_length = 500, time_horizon = 7, init_pose=init_pose, goal_pose = goal_pose, manip_coeff = manip_coeff,istest=istest)
         filename = 'naive_orient_try5_manip10_horizon7.npy'
         np.save('./result/'+filename,datasets)
-        
+        '''
     
 if __name__ == '__main__':
     main()
