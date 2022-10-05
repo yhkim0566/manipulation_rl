@@ -59,6 +59,7 @@ class MPC_Agent():
             #next_states = np.concatenate([next_states[:,0:3],self.orientation,next_states[:,3:6],next_states[:,3:6]],1)
             total_costs += self.cost_fn(next_states)*np.power(0.9,i)
             action = np.concatenate([next_states[:,0:3] + norm_action_list * vel_coeff * self.unit_coeff,orientation + orientation_action_list],1)
+        
             states = next_states
              
         return first_actions[np.argmin(total_costs),:].flatten()
@@ -74,9 +75,9 @@ class MPC_Agent():
 
             print('reset the episode and generate random goal')
             state = self.reset(init_pos= init_pose, goal_pos=goal_pose, istest=istest)
-            self.obstacle1, self.obstacle2 = self.generate_obstacles(init_pose, goal_pose)
+            self.obstacle1, self.obstacle2, self.obstacle3, self.obstacle4 = self.generate_obstacles(init_pose, goal_pose)
             print('obstacles')
-            print(self.obstacle1, self.obstacle2)
+            print(self.obstacle1, self.obstacle2,self.obstacle3, self.obstacle4)
             print('start, goal')
             print(state[:,0:6], self.goal)
             rospy.set_param('/real/mode', JOINT_CONTROL)
@@ -130,15 +131,25 @@ class MPC_Agent():
         distance_cost = np.sqrt(np.sum((pred_next_states[:,0:3]-self.goal[0:3])**2,1))
         orientation_cost = 0.0#np.sqrt(np.sum((pred_next_states[:,3:6]-self.goal[3:6])**2,1))*0.5
         if np.max(np.sqrt(np.sum((pred_next_states[:,0:3]-self.obstacle1)**2,1))) < 0.1:
-            obstacle1_cost = -np.sqrt(np.sum((pred_next_states[:,0:3]-self.obstacle1)**2,1))*0.3
+            obstacle1_cost = -np.sqrt(np.sum((pred_next_states[:,0:3]-self.obstacle1)**2,1))*0.05
         else:
             obstacle1_cost = 0.0
         if np.max(np.sqrt(np.sum((pred_next_states[:,0:3]-self.obstacle2)**2,1))) < 0.1:
-            obstacle2_cost = -np.sqrt(np.sum((pred_next_states[:,0:3]-self.obstacle2)**2,1))*0.3
+            obstacle2_cost = -np.sqrt(np.sum((pred_next_states[:,0:3]-self.obstacle2)**2,1))*0.05
         else:
             obstacle2_cost = 0.0
+            
+        if np.max(np.sqrt(np.sum((pred_next_states[:,0:3]-self.obstacle3)**2,1))) < 0.1:
+            obstacle3_cost = -np.sqrt(np.sum((pred_next_states[:,0:3]-self.obstacle3)**2,1))*0.05
+        else:
+            obstacle3_cost = 0.0
+        if np.max(np.sqrt(np.sum((pred_next_states[:,0:3]-self.obstacle4)**2,1))) < 0.1:
+            obstacle4_cost = -np.sqrt(np.sum((pred_next_states[:,0:3]-self.obstacle4)**2,1))*0.05
+        else:
+            obstacle4_cost = 0.0
+            
         #manipulability_cost = -self.m_model.predict(pred_next_states[:,0:6]).flatten()*np.mean(distance_cost)*self.manip_coeff
-        scores = distance_cost + orientation_cost + obstacle1_cost + obstacle2_cost#+ manipulability_cost
+        scores = distance_cost + orientation_cost + obstacle1_cost + obstacle2_cost + obstacle3_cost + obstacle4_cost#+ manipulability_cost
         return scores
     
     def reward_fn(self, state):
@@ -226,13 +237,18 @@ class MPC_Agent():
     def generate_obstacles(self, init_pose, goal_pose):
         line = np.linspace(init_pose,goal_pose,100)
         
-        obstacle1 = line[33][0:3] 
-        obstacle2 = line[66][0:3] #np.array([-0.3969209, 0.3706089723, 0.742756550])#
-        
+        #obstacle1 = line[33][0:3] 
+        #obstacle2 = line[66][0:3] #np.array([-0.3969209, 0.3706089723, 0.742756550])#
+        obstacle1 = np.array([-0.3636915453041721, 0.548578721402501, 0.4377162452901069])
+        obstacle2 = np.array([-0.3718779195870111, 0.540325984871439, 0.4301771889978318])
+        obstacle3 = np.array([-0.37990784430198377, 0.5322402942342755, 0.42442688612754265])
+        obstacle4 = np.array([-0.3806772874854791, 0.5273539752595069, 0.41872258340599444])
+                             
+
         # random obstacle
         #obstacle1 = line[33] + np.random.rand(6)*0.1 - 0.05
         #obstacle2 = line[66] + np.random.rand(6)*0.1 - 0.05
-        return obstacle1, obstacle2
+        return obstacle1, obstacle2, obstacle3, obstacle4
             
  
 def split_and_arrange_dataset(datasets, ratio=0.8):
