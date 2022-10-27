@@ -55,7 +55,14 @@ def main():
     x4 = -0.3718779195870111+ np.outer(np.cos(u), np.sin(v))*r
     y4 = 0.540325984871439  + np.outer(np.sin(u), np.sin(v))*r
     z4 = 0.4301771889978318 + np.outer(np.ones(np.size(u)), np.cos(v))*r
-
+    obs1 = np.array([-0.3799078443019837, 0.532240294234275, 0.4244268861275426])
+    obs2 = np.array([-0.3636915453041721, 0.548578721402501, 0.4377162452901069])
+    obs3 = np.array([-0.3806772874854791, 0.527353975259506, 0.4187225834059944])
+    obs4 = np.array([-0.3718779195870111, 0.540325984871439, 0.4301771889978318])
+    print(np.min(np.sqrt((np.asarray(dataset1['real_cur_pos'])[:,0]-obs1[0])**2+ (np.asarray(dataset1['real_cur_pos'])[:,1]-obs1[1])**2+(np.asarray(dataset1['real_cur_pos'])[:,2]-obs1[2])**2)))
+    print(np.min(np.sqrt((np.asarray(dataset2['real_cur_pos'])[:,0]-obs2[0])**2+ (np.asarray(dataset2['real_cur_pos'])[:,1]-obs2[1])**2+(np.asarray(dataset2['real_cur_pos'])[:,2]-obs2[2])**2)))
+    print(np.min(np.sqrt((np.asarray(dataset3['real_cur_pos'])[:,0]-obs3[0])**2+ (np.asarray(dataset3['real_cur_pos'])[:,1]-obs3[1])**2+(np.asarray(dataset3['real_cur_pos'])[:,2]-obs3[2])**2)))
+    print(np.min(np.sqrt((np.asarray(dataset4['real_cur_pos'])[:,0]-obs4[0])**2+ (np.asarray(dataset4['real_cur_pos'])[:,1]-obs4[1])**2+(np.asarray(dataset4['real_cur_pos'])[:,2]-obs4[2])**2)))
     
     fig = plt.figure(figsize=(30,20))
     fig.suptitle('Obstacle avoidance', fontsize=24)
@@ -196,11 +203,11 @@ def main():
 
     
     
-    plt.legend(fontsize=15)
-    plt.tight_layout(h_pad=0.5, rect=(0,0,1.0,0.96))
-    plt.show()
-    fig.savefig('./fig/obstacle_avoidance.png')
-    fig.savefig('./fig/obstacle_avoidance.pdf',dpi=600)
+    #plt.legend(fontsize=15)
+    #plt.tight_layout(h_pad=0.5, rect=(0,0,1.0,0.96))
+    #plt.show()
+    #fig.savefig('./fig/obstacle_avoidance.png')
+    #fig.savefig('./fig/obstacle_avoidance.pdf',dpi=600)
     
 if __name__ == '__main__':
     main()
